@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "Confession": {
+      "title": "Confession",
+      "description": "An anonymous confession post.",
+      "type": "object",
+      "properties": {
+        "content": { "type": "string", "description": "The text content of the confession." },
+        "category": { "type": "string", "description": "The category of the confession (e.g., 'Love', 'Work', 'Life')." },
+        "mood": { "type": "string", "enum": ["sad", "love", "drama", "funny"], "description": "The mood of the confession." },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "Keywords for matching." },
+        "status": { "type": "string", "enum": ["published", "flagged", "hidden"], "description": "The moderation status." },
+        "reportsCount": { "type": "integer", "description": "The number of reports received." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the confession was posted." },
+        "anonymousId": { "type": "string", "description": "A random ID for the poster." }
+      },
+      "required": ["content", "category", "mood", "tags", "status", "reportsCount", "createdAt", "anonymousId"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "A report on a confession.",
+      "type": "object",
+      "properties": {
+        "confessionId": { "type": "string", "description": "The ID of the reported confession." },
+        "reason": { "type": "string", "description": "The reason for reporting." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the report was made." }
+      },
+      "required": ["confessionId", "reason", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "username": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "bio": { "type": "string" },
+        "isPublic": { "type": "boolean" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "streakCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "username", "avatarUrl", "isPublic", "role", "streakCount", "createdAt"]
+    },
+    "Username": {
+      "title": "Username",
+      "description": "Mapping of username to uid for uniqueness.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" }
+      },
+      "required": ["uid"]
+    },
+    "SavedConfession": {
+      "title": "SavedConfession",
+      "description": "A bookmarked confession.",
+      "type": "object",
+      "properties": {
+        "confessionId": { "type": "string" },
+        "uid": { "type": "string" },
+        "savedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["confessionId", "uid", "savedAt"]
+    }
+  },
+  "firestore": {
+    "/confessions/{confessionId}": {
+      "schema": "Confession",
+      "description": "Collection of anonymous confessions."
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Collection of reports on confessions."
+    },
+    "/users/{uid}": {
+      "schema": "UserProfile",
+      "description": "Collection of user profiles."
+    },
+    "/usernames/{username}": {
+      "schema": "Username",
+      "description": "Collection for unique username mapping."
+    },
+    "/saved_confessions/{savedId}": {
+      "schema": "SavedConfession",
+      "description": "Collection of bookmarked confessions."
+    }
+  }
+}

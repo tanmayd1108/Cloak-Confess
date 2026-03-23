@@ -1,0 +1,5 @@
+{
+  "name": "Cloak Confess - Anonymous Confessions",
+  "description": "A safe space to share your secrets anonymously. Features Confession Battles, AI-powered 'Guess the Truth' games, and real-time community matching.",
+  "requestFramePermissions": ["microphone"]
+}
