@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db, auth } from '../firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, orderBy, limit, getDocs, addDoc, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
 import { DailyPrompt, Confession } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -17,59 +17,79 @@ export default function DailyPromptSection({ onAnswer }: { onAnswer: () => void 
   const [loading, setLoading] = useState(true);
   const [showResponses, setShowResponses] = useState(false);
 
-  useEffect(() => {
-    const fetchDailyPrompt = async () => {
-      try {
-        const today = new Date().toISOString().split('T')[0];
-        const promptRef = doc(db, 'daily_prompts', today);
-        const promptSnap = await getDoc(promptRef);
+  const fetchDailyPrompt = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const promptRef = doc(db, 'daily_prompts', today);
+      const promptSnap = await getDoc(promptRef);
 
-        if (promptSnap.exists()) {
-          setPrompt({ id: promptSnap.id, ...promptSnap.data() } as DailyPrompt);
-        } else {
-          // Create a new one if it doesn't exist (simplified for demo)
-          const questions = [
-            "What's a secret you've never told anyone?",
-            "What's your biggest regret from high school?",
-            "What's something you're currently struggling with?",
-            "What's the kindest thing a stranger has done for you?",
-            "What's a lie you tell yourself every day?"
-          ];
-          const randomQuestion = questions[Math.floor(Math.random() * questions.length)];
-          const newPrompt = { question: randomQuestion, date: today };
+      if (promptSnap.exists()) {
+        setPrompt({ id: promptSnap.id, ...promptSnap.data() } as DailyPrompt);
+      } else if (auth.currentUser) {
+        // Create a new one if it doesn't exist (simplified for demo)
+        const questions = [
+          "What's a secret you've never told anyone?",
+          "What's your biggest regret from high school?",
+          "What's something you're currently struggling with?",
+          "What's the kindest thing a stranger has done for you?",
+          "What's a lie you tell yourself every day?"
+        ];
+        const randomQuestion = questions[Math.floor(Math.random() * questions.length)];
+        const newPrompt = { question: randomQuestion, date: today };
+        try {
           await setDoc(promptRef, newPrompt);
           setPrompt({ id: today, ...newPrompt } as DailyPrompt);
+        } catch (err) {
+          // If not admin, this will fail, which is fine - we just won't have a prompt
+          if (err instanceof Error && err.message.includes('insufficient permissions')) {
+            console.warn("User is not authorized to create daily prompts.");
+          } else {
+            handleFirestoreError(err, OperationType.WRITE, `daily_prompts/${today}`);
+          }
         }
+      }
 
-        // Fetch some responses
-        const q = query(
-          collection(db, 'confessions'),
-          where('category', '==', 'Daily Prompt'),
-          where('status', '==', 'published'),
-          orderBy('createdAt', 'desc'),
-          limit(5)
-        );
+      // Fetch some responses
+      const q = query(
+        collection(db, 'confessions'),
+        where('category', '==', 'Daily Prompt'),
+        where('status', '==', 'published'),
+        where('isPrivate', '==', false),
+        orderBy('createdAt', 'desc'),
+        limit(5)
+      );
+      
+      try {
         const snapshot = await getDocs(q);
         setResponses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Confession)));
-
       } catch (err) {
-        console.error("Error fetching daily prompt:", err);
-      } finally {
-        setLoading(false);
+        handleFirestoreError(err, OperationType.LIST, 'confessions');
       }
-    };
+
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('insufficient permissions')) {
+        console.error("Permission error in DailyPromptSection:", err);
+      } else {
+        console.error("Error fetching daily prompt:", err);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchDailyPrompt();
-  }, []);
+  }, [auth.currentUser?.uid]);
 
   if (loading || !prompt) return null;
 
   return (
-    <div className="glass p-8 rounded-3xl border border-white/5 space-y-6 relative overflow-hidden group">
-      <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-        <HelpCircle className="w-32 h-32" />
+    <div className="glass p-6 rounded-2xl border border-white/5 space-y-4 relative overflow-hidden group">
+      <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+        <HelpCircle className="w-24 h-24" />
       </div>
 
-      <div className="relative z-10 space-y-4">
+      <div className="relative z-10 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-accent font-mono text-[10px] uppercase tracking-widest">
             <Clock className="w-3 h-3" />
@@ -77,13 +97,13 @@ export default function DailyPromptSection({ onAnswer }: { onAnswer: () => void 
           </div>
           <button
             onClick={onAnswer}
-            className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent text-white text-[10px] font-bold uppercase tracking-widest hover:bg-accent/80 transition-all shadow-lg shadow-accent/20"
+            className="flex items-center gap-2 px-3 py-1 rounded-full bg-accent text-white text-[10px] font-bold uppercase tracking-widest hover:bg-accent/80 transition-all shadow-lg shadow-accent/20"
           >
             <Send className="w-3 h-3" />
             Answer
           </button>
         </div>
-        <h3 className="text-2xl md:text-3xl font-serif italic text-white/90 leading-tight">
+        <h3 className="text-xl md:text-2xl font-serif italic text-white/90 leading-tight">
           "{prompt.question}"
         </h3>
         

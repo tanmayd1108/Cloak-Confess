@@ -59,6 +59,7 @@ export interface Comment {
   parentCommentId?: string | null;
   content: string;
   authorUid: string;
+  authorUsername?: string;
   anonymousId: string;
   persona?: string;
   createdAt: any;
@@ -76,6 +77,7 @@ export interface UserProfile {
   role: 'admin' | 'user';
   email?: string | null;
   username: string;
+  username_lower: string;
   avatarUrl: string;
   bio?: string;
   isPublic: boolean;
@@ -90,6 +92,10 @@ export interface UserProfile {
     topConfessionId?: string;
   };
   createdAt: any;
+  displayName?: string | null;
+  photoURL?: string | null;
+  lastActive?: any;
+  updatedAt?: any;
 }
 
 export interface SavedConfession {

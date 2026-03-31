@@ -78,66 +78,66 @@ export default function UserStats() {
   if (!stats) return null;
 
   return (
-    <div className="space-y-6 mb-12">
-      <div className="flex items-center gap-3 mb-4">
-        <BarChart3 className="w-6 h-6 text-accent" />
-        <h2 className="text-2xl font-serif italic text-white">Your Cloak Confess Journey</h2>
+    <div className="space-y-4 md:space-y-6 mb-12">
+      <div className="flex items-center gap-2 md:gap-3 mb-4">
+        <BarChart3 className="w-5 h-5 md:w-6 md:h-6 text-accent" />
+        <h2 className="text-xl md:text-2xl font-serif italic text-white">Your Cloak Confess Journey</h2>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass p-6 rounded-2xl border border-white/5 flex flex-col items-center text-center"
+          className="glass p-4 md:p-6 rounded-xl md:rounded-2xl border border-white/5 flex flex-col items-center text-center"
         >
-          <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mb-4">
-            <Heart className="w-6 h-6 text-accent" />
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-accent/10 flex items-center justify-center mb-3 md:mb-4">
+            <Heart className="w-5 h-5 md:w-6 md:h-6 text-accent" />
           </div>
-          <div className="text-3xl font-mono text-white mb-1">{stats.totalLikes}</div>
-          <div className="text-xs text-white/40 uppercase tracking-widest">Total Reactions</div>
+          <div className="text-2xl md:text-3xl font-mono text-white mb-1">{stats.totalLikes}</div>
+          <div className="text-[10px] md:text-xs text-white/40 uppercase tracking-widest">Total Reactions</div>
         </motion.div>
 
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="glass p-6 rounded-2xl border border-white/5 flex flex-col items-center text-center"
+          className="glass p-4 md:p-6 rounded-xl md:rounded-2xl border border-white/5 flex flex-col items-center text-center"
         >
-          <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center mb-4">
-            <Eye className="w-6 h-6 text-blue-400" />
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-blue-500/10 flex items-center justify-center mb-3 md:mb-4">
+            <Eye className="w-5 h-5 md:w-6 md:h-6 text-blue-400" />
           </div>
-          <div className="text-3xl font-mono text-white mb-1">{stats.totalViews}</div>
-          <div className="text-xs text-white/40 uppercase tracking-widest">Total Views</div>
+          <div className="text-2xl md:text-3xl font-mono text-white mb-1">{stats.totalViews}</div>
+          <div className="text-[10px] md:text-xs text-white/40 uppercase tracking-widest">Total Views</div>
         </motion.div>
 
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="glass p-6 rounded-2xl border border-white/5 flex flex-col items-center text-center"
+          className="glass p-4 md:p-6 rounded-xl md:rounded-2xl border border-white/5 flex flex-col items-center text-center col-span-2 md:col-span-1"
         >
-          <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center mb-4">
-            <MessageSquare className="w-6 h-6 text-purple-400" />
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-purple-500/10 flex items-center justify-center mb-3 md:mb-4">
+            <MessageSquare className="w-5 h-5 md:w-6 md:h-6 text-purple-400" />
           </div>
-          <div className="text-3xl font-mono text-white mb-1">{stats.totalConfessions}</div>
-          <div className="text-xs text-white/40 uppercase tracking-widest">Confessions</div>
+          <div className="text-2xl md:text-3xl font-mono text-white mb-1">{stats.totalConfessions}</div>
+          <div className="text-[10px] md:text-xs text-white/40 uppercase tracking-widest">Confessions</div>
         </motion.div>
       </div>
 
       {stats.badges.length > 0 && (
-        <div className="glass p-6 rounded-2xl border border-white/5">
-          <div className="flex items-center gap-2 mb-4">
-            <Trophy className="w-5 h-5 text-yellow-500" />
-            <span className="text-sm font-medium text-white/80">Earned Badges</span>
+        <div className="glass p-4 md:p-6 rounded-xl md:rounded-2xl border border-white/5">
+          <div className="flex items-center gap-2 mb-3 md:mb-4">
+            <Trophy className="w-4 h-4 md:w-5 md:h-5 text-yellow-500" />
+            <span className="text-xs md:text-sm font-medium text-white/80">Earned Badges</span>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2 md:gap-3">
             {stats.badges.map((badge) => (
               <div 
                 key={badge}
-                className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 px-4 py-2 rounded-xl"
+                className="flex items-center gap-1.5 md:gap-2 bg-yellow-500/10 border border-yellow-500/20 px-3 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl"
               >
-                <Award className="w-4 h-4 text-yellow-500" />
-                <span className="text-sm font-medium text-yellow-500">{badge}</span>
+                <Award className="w-3.5 h-3.5 md:w-4 md:h-4 text-yellow-500" />
+                <span className="text-[10px] md:text-sm font-medium text-yellow-500">{badge}</span>
               </div>
             ))}
           </div>
@@ -145,16 +145,16 @@ export default function UserStats() {
       )}
 
       {stats.topConfession && (
-        <div className="glass p-6 rounded-2xl border border-white/5 relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-10">
-            <Star className="w-24 h-24 text-accent" />
+        <div className="glass p-4 md:p-6 rounded-xl md:rounded-2xl border border-white/5 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-3 md:p-4 opacity-10">
+            <Star className="w-16 h-16 md:w-24 md:h-24 text-accent" />
           </div>
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="w-5 h-5 text-accent" />
-            <span className="text-sm font-medium text-white/80">Top Confession</span>
+          <div className="flex items-center gap-2 mb-3 md:mb-4">
+            <TrendingUp className="w-4 h-4 md:w-5 md:h-5 text-accent" />
+            <span className="text-xs md:text-sm font-medium text-white/80">Top Confession</span>
           </div>
-          <p className="text-white/60 italic line-clamp-2 mb-4">"{stats.topConfession.content}"</p>
-          <div className="flex items-center gap-4 text-[10px] text-white/30 font-mono uppercase">
+          <p className="text-white/60 italic line-clamp-2 mb-3 md:mb-4 text-sm md:text-base">"{stats.topConfession.content}"</p>
+          <div className="flex items-center gap-3 md:gap-4 text-[9px] md:text-[10px] text-white/30 font-mono uppercase">
             <span>{Object.values(stats.topConfession.reactions || {}).reduce((a, b) => a + b, 0)} Reactions</span>
             <span>{stats.topConfession.viewsCount} Views</span>
           </div>

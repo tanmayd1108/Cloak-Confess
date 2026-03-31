@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db, auth } from './firebase';
+import { db, auth, handleFirestoreError, OperationType } from './firebase';
 import { collection, query, where, onSnapshot, orderBy, limit, getDoc, doc, setDoc, updateDoc, serverTimestamp, or, and } from 'firebase/firestore';
 import { signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { Confession, UserProfile, ConfessionMood } from './types';
@@ -14,61 +14,11 @@ import GuessTheTruth from './components/GuessTheTruth';
 import Leaderboard from './components/Leaderboard';
 import DailyPromptSection from './components/DailyPromptSection';
 import SurpriseConfessionDrop from './components/SurpriseConfessionDrop';
+import Logo from './components/Logo';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, ShieldAlert, Plus, X, Filter, TrendingUp, Clock, VenetianMask, BarChart3, Swords, Brain, Sparkles, Trophy, HelpCircle, Gift, User, LogIn, Loader2, Home } from 'lucide-react';
+import { Shield, ShieldAlert, Plus, X, Filter, TrendingUp, Clock, BarChart3, Swords, Brain, Sparkles, Trophy, HelpCircle, Gift, User, LogIn, Loader2, Home } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -141,6 +91,18 @@ function AppContent() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  // Scroll Lock for Modal
+  useEffect(() => {
+    if (showForm) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showForm]);
+
   useEffect(() => {
     if (!isAuthReady || !auth.currentUser) return;
     const unsubscribe = onSnapshot(doc(db, 'users', auth.currentUser.uid), (doc) => {
@@ -201,16 +163,21 @@ function AppContent() {
         if (!profileSnap.exists()) {
           const username = generateRandomUsername();
           const avatarUrl = generateAvatarUrl(username);
-          const isAdminEmail = user.email === 'admin.loginmyauth118@gmail.com';
+          const isAdminEmail = user.email === 'dhandamarket@gmail.com' || user.email === 'admin.loginmyauth118@gmail.com' || user.email === 'team.tgprimetime@gmail.com';
           
           const newProfile: UserProfile = {
             uid: user.uid,
+            email: user.email,
             username,
+            username_lower: username.toLowerCase(),
             avatarUrl,
             role: isAdminEmail ? 'admin' : 'user',
             isPublic: true,
             streakCount: 0,
             createdAt: serverTimestamp(),
+            lastActive: serverTimestamp(),
+            displayName: user.displayName,
+            photoURL: user.photoURL,
             stats: {
               totalPosts: 0,
               totalLikes: 0,
@@ -221,14 +188,23 @@ function AppContent() {
           
           await setDoc(profileRef, newProfile);
           // Also claim username
-          await setDoc(doc(db, 'usernames', username), { uid: user.uid });
+          await setDoc(doc(db, 'usernames', username.toLowerCase()), { uid: user.uid });
         } else {
-          // Check if admin role needs to be assigned
+          // Update lastActive and sync profile info
           const data = profileSnap.data() as UserProfile;
-          const isAdminEmail = user.email === 'admin.loginmyauth118@gmail.com';
+          const isAdminEmail = user.email === 'dhandamarket@gmail.com' || user.email === 'admin.loginmyauth118@gmail.com' || user.email === 'team.tgprimetime@gmail.com';
+          
+          const updates: any = {
+            lastActive: serverTimestamp(),
+            displayName: user.displayName,
+            photoURL: user.photoURL
+          };
+
           if (isAdminEmail && data.role !== 'admin') {
-            await updateDoc(profileRef, { role: 'admin' });
+            updates.role = 'admin';
           }
+
+          await updateDoc(profileRef, updates);
         }
       }
       setIsAuthReady(true);
@@ -324,123 +300,106 @@ function AppContent() {
       <div className="atmosphere" />
       
       {/* Header */}
-      <header className="sticky top-0 z-50 glass border-b border-white/5 px-4 md:px-6 py-3 md:py-4 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div 
-            className="flex items-center gap-2 md:gap-3 cursor-pointer group"
-            onClick={() => { setView('feed'); setCategory('All'); setCommunityType('All'); setCommunityName(''); setMoodFilter('All'); setTargetUsername(undefined); }}
-          >
-            <div className="w-8 h-8 md:w-10 md:h-10 bg-accent rounded-lg md:rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(255,78,0,0.3)] group-hover:scale-110 transition-transform">
-              <VenetianMask className="text-white w-5 h-5 md:w-6 md:h-6" />
+      <header className="sticky top-0 z-50 glass border-b border-white/5 backdrop-blur-xl transition-all duration-300">
+        <div className="max-w-7xl mx-auto flex items-center h-14 md:h-20 px-4 md:px-8">
+          {/* Logo */}
+          <div className="flex items-center shrink-0">
+            <div 
+              className="flex items-center gap-2 md:gap-4 cursor-pointer group shrink-0"
+              onClick={() => { setView('feed'); setCategory('All'); setCommunityType('All'); setCommunityName(''); setMoodFilter('All'); setTargetUsername(undefined); }}
+            >
+              <div className="w-8 h-8 md:w-12 md:h-12 bg-accent/10 rounded-lg md:rounded-2xl flex items-center justify-center shadow-[0_0_30px_rgba(255,78,0,0.2)] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 overflow-hidden p-1.5 md:p-2.5">
+                <Logo className="w-full h-full" />
+              </div>
+              <div className="flex flex-col">
+                <h1 className="text-lg md:text-3xl font-serif italic tracking-tight leading-none">Cloak Confess</h1>
+                <span className="text-[8px] md:text-xs text-white/30 font-mono uppercase tracking-[0.2em] mt-0.5 md:mt-1">Anonymous Whispers</span>
+              </div>
             </div>
-            <h1 className="text-xl md:text-2xl font-serif italic tracking-tight">Cloak Confess</h1>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-4">
+          {/* Desktop Search - Centered */}
+          <div className="hidden md:flex flex-1 justify-center min-w-0">
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-3 md:gap-6 shrink-0">
             {(auth.currentUser?.isAnonymous !== false) && (
               <button
                 onClick={handleGoogleLogin}
                 disabled={isLoggingIn}
-                className="text-[10px] md:text-xs text-white/40 hover:text-white border border-white/10 px-2 md:px-3 py-1 md:py-1.5 rounded-lg transition-colors flex items-center gap-1 md:gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="hidden lg:flex items-center gap-2 text-xs text-white/60 hover:text-white border border-white/10 px-4 py-2 rounded-xl transition-all hover:bg-white/5 disabled:opacity-50"
               >
-                {isLoggingIn ? <Loader2 className="w-3 h-3 animate-spin" /> : <LogIn className="w-3 h-3" />}
-                <span className="hidden sm:inline">{isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
-                <span className="sm:hidden">{isLoggingIn ? '...' : 'In'}</span>
+                {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+                <span>{isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
               </button>
             )}
             
             {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-2">
+            <nav className="hidden md:flex items-center gap-1 bg-white/5 p-1 rounded-2xl border border-white/10">
+              {[
+                { id: 'feed', icon: Home, label: 'Home', action: () => { setTargetUsername(undefined); setView('feed'); setCategory('All'); setCommunityType('All'); setCommunityName(''); setMoodFilter('All'); } },
+                { id: 'trusted', icon: ShieldAlert, label: 'Trusted', action: () => { setTargetUsername(undefined); setView('trusted' === view ? 'feed' : 'trusted'); } },
+                { id: 'battles', icon: Swords, label: 'Battles', action: () => { setTargetUsername(undefined); setView('battles' === view ? 'feed' : 'battles'); } },
+                { id: 'truth', icon: Brain, label: 'Truth', action: () => { setTargetUsername(undefined); setView('truth' === view ? 'feed' : 'truth'); } },
+                { id: 'leaderboard', icon: Trophy, label: 'Top', action: () => { setTargetUsername(undefined); setView('leaderboard' === view ? 'feed' : 'leaderboard'); } },
+                { id: 'stats', icon: BarChart3, label: 'Stats', action: () => { setTargetUsername(undefined); setView('stats' === view ? 'feed' : 'stats'); } },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={item.action}
+                  className={cn(
+                    "flex items-center gap-2 px-3 xl:px-4 py-2.5 rounded-xl text-sm font-medium transition-all",
+                    view === item.id && !targetUsername 
+                      ? "bg-accent text-white shadow-lg shadow-accent/20" 
+                      : "text-white/40 hover:text-white hover:bg-white/5"
+                  )}
+                >
+                  <item.icon className="w-4 h-4" />
+                  <span className="hidden xl:inline">{item.label}</span>
+                </button>
+              ))}
+
               <button
-                onClick={() => { setTargetUsername(undefined); setView('feed'); setCategory('All'); setCommunityType('All'); setCommunityName(''); setMoodFilter('All'); }}
+                onClick={() => { setTargetUsername(undefined); setView('profile' === view ? 'feed' : 'profile'); }}
                 className={cn(
-                  "p-2 rounded-full transition-all",
-                  view === 'feed' && !targetUsername ? "bg-accent text-white" : "text-white/40 hover:text-white"
+                  "flex items-center gap-2 px-3 xl:px-4 py-2.5 rounded-xl text-sm font-medium transition-all",
+                  view === 'profile' && !targetUsername ? "bg-accent text-white shadow-lg shadow-accent/20" : "text-white/40 hover:text-white hover:bg-white/5"
                 )}
-                title="Home"
               >
-                <Home className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => { setTargetUsername(undefined); setView('trusted' === view ? 'feed' : 'trusted'); }}
-                className={cn(
-                  "p-2 rounded-full transition-all",
-                  view === 'trusted' ? "bg-accent text-white" : "text-white/40 hover:text-white"
+                {userProfile ? (
+                  <img 
+                    src={userProfile.avatarUrl} 
+                    alt={userProfile.username}
+                    className="w-4 h-4 rounded-full bg-white/5"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <User className="w-4 h-4" />
                 )}
-                title="Trusted Circle"
-              >
-                <ShieldAlert className="w-5 h-5" />
+                <span className="hidden xl:inline">Profile</span>
               </button>
-              <button
-                onClick={() => { setTargetUsername(undefined); setView('battles' === view ? 'feed' : 'battles'); }}
-                className={cn(
-                  "p-2 rounded-full transition-all",
-                  view === 'battles' ? "bg-accent text-white" : "text-white/40 hover:text-white"
-                )}
-                title="Confession Battles"
-              >
-                <Swords className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => { setTargetUsername(undefined); setView('truth' === view ? 'feed' : 'truth'); }}
-                className={cn(
-                  "p-2 rounded-full transition-all",
-                  view === 'truth' ? "bg-accent text-white" : "text-white/40 hover:text-white"
-                )}
-                title="Guess the Truth"
-              >
-                <Brain className="w-5 h-5" />
-              </button>
+            </nav>
+
+            <button
+              onClick={() => setShowForm(true)}
+              className="hidden md:flex items-center gap-2 bg-white text-black px-8 py-3 rounded-2xl font-bold hover:bg-accent hover:text-white transition-all shadow-xl active:scale-95"
+            >
+              <Plus className="w-5 h-5" />
+              Confess
+            </button>
+
+            {/* Mobile Actions (Minimal) */}
+            <div className="md:hidden flex items-center gap-2">
               <button
                 onClick={() => { setTargetUsername(undefined); setView('leaderboard' === view ? 'feed' : 'leaderboard'); }}
                 className={cn(
                   "p-2 rounded-full transition-all",
                   view === 'leaderboard' ? "bg-accent text-white" : "text-white/40 hover:text-white"
                 )}
-                title="Leaderboard"
               >
                 <Trophy className="w-5 h-5" />
               </button>
-              <button
-                onClick={() => { setTargetUsername(undefined); setView('stats' === view ? 'feed' : 'stats'); }}
-                className={cn(
-                  "p-2 rounded-full transition-all",
-                  view === 'stats' ? "bg-accent text-white" : "text-white/40 hover:text-white"
-                )}
-                title="Your Stats"
-              >
-                <BarChart3 className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => { setTargetUsername(undefined); setView('profile' === view ? 'feed' : 'profile'); }}
-                className={cn(
-                  "p-2 rounded-full transition-all",
-                  view === 'profile' && !targetUsername ? "bg-accent text-white" : "text-white/40 hover:text-white"
-                )}
-                title="Your Profile"
-              >
-                {userProfile ? (
-                  <img 
-                    src={userProfile.avatarUrl} 
-                    alt={userProfile.username}
-                    className="w-5 h-5 rounded-full bg-white/5"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <User className="w-5 h-5" />
-                )}
-              </button>
-              <button
-                onClick={() => setShowForm(true)}
-                className="bg-white text-black px-6 py-2 rounded-full font-medium hover:bg-white/90 transition-all flex items-center gap-2 ml-2"
-              >
-                <Plus className="w-4 h-4" />
-                Confess
-              </button>
-            </div>
-
-            {/* Mobile Actions (Minimal) */}
-            <div className="md:hidden flex items-center gap-2">
                <button
                 onClick={() => { setTargetUsername(undefined); setView('stats' === view ? 'feed' : 'stats'); }}
                 className={cn(
@@ -453,18 +412,302 @@ function AppContent() {
             </div>
           </div>
         </div>
+
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 md:px-6 pt-8 md:pt-12 pb-24 md:pb-12">
+      <main className="max-w-7xl mx-auto px-4 md:px-8 pt-10 md:pt-20 pb-24 md:pb-20">
         <AnimatePresence mode="wait">
-          {view === 'admin' ? (
+          {view === 'feed' ? (
             <motion.div
-              key="admin"
+              key="feed"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6 md:space-y-12"
+            >
+              {!targetUsername && (
+                <>
+                  {/* Hero Section */}
+                  <section className="relative overflow-hidden rounded-[1.25rem] md:rounded-[1.5rem] bg-gradient-to-br from-accent/20 via-accent/5 to-transparent p-3 md:p-6 border border-white/5 shadow-2xl">
+                    <div className="relative z-10 max-w-xl">
+                      <motion.div
+                        initial={{ opacity: 0, x: -30 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.2 }}
+                      >
+                        <div className="inline-flex items-center gap-1.5 md:gap-2 bg-accent/10 px-1.5 py-0.5 rounded-full border border-accent/20 mb-1.5 md:mb-2">
+                          <Sparkles className="w-2.5 h-2.5 md:w-3 md:h-3 text-accent animate-pulse" />
+                          <span className="text-[7px] md:text-[8px] font-mono text-accent uppercase tracking-[0.2em]">The World's Safest Secret Community</span>
+                        </div>
+                        <h2 className="text-xl md:text-3xl font-serif italic mb-2 md:mb-3 leading-tight tracking-tight">
+                          Your secrets are <span className="text-accent underline decoration-accent/20 underline-offset-[6px] md:underline-offset-[8px]">safe</span> with us.
+                        </h2>
+                        <p className="text-xs md:text-base text-white/40 mb-3 md:mb-4 leading-relaxed font-light max-w-md">
+                          Join thousands of others sharing their deepest thoughts anonymously. No tracking, no judgment, just pure expression.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <button 
+                            onClick={() => setShowForm(true)}
+                            className="bg-accent text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg font-bold text-[10px] md:text-sm hover:scale-105 transition-all shadow-[0_10px_20px_rgba(255,78,0,0.3)] active:scale-95 group flex items-center gap-1.5 md:gap-2"
+                          >
+                            <span>Start Confessing</span>
+                            <Plus className="w-3 h-3 md:w-3.5 md:h-3.5 group-hover:rotate-90 transition-transform" />
+                          </button>
+                          <button className="bg-white/5 backdrop-blur-2xl border border-white/10 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg font-bold text-[10px] md:text-sm hover:bg-white/10 transition-all active:scale-95">
+                            Explore Stories
+                          </button>
+                        </div>
+                      </motion.div>
+                    </div>
+                    <div className="absolute top-0 right-0 w-1/2 md:w-2/3 h-full opacity-[0.03] md:opacity-[0.05] pointer-events-none flex items-center justify-center">
+                      <Logo className="w-full h-full rotate-12 translate-x-1/4 -translate-y-1/4" />
+                    </div>
+                  </section>
+
+                  {/* Daily Prompt */}
+                  {isAuthReady && (
+                    <DailyPromptSection onAnswer={() => { setInitialCategory('Daily Prompt'); setShowForm(true); }} />
+                  )}
+
+                      {/* Game Promotion Grid */}
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {[
+                          { id: 'battles', icon: Swords, title: 'Confession Battles', desc: 'Vote on the most relatable secrets.', color: 'text-accent', bg: 'hover:border-accent/30' },
+                          { id: 'leaderboard', icon: Trophy, title: 'Top Whisperers', desc: 'See who\'s the most relatable.', color: 'text-yellow-500', bg: 'hover:border-yellow-500/30' },
+                          { id: 'truth', icon: Brain, title: 'Guess the Truth', desc: 'Can you spot the human?', color: 'text-purple-400', bg: 'hover:border-purple-500/30' }
+                        ].map((game) => (
+                          <button
+                            key={game.id}
+                            onClick={() => setView(game.id as any)}
+                            className={cn(
+                              "group relative overflow-hidden glass p-6 rounded-[2rem] border border-white/5 transition-all text-left",
+                              game.bg
+                            )}
+                          >
+                            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-20 transition-opacity">
+                              <game.icon className="w-24 h-24" />
+                            </div>
+                            <div className="relative z-10 space-y-3">
+                              <div className={cn("flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest", game.color)}>
+                                <Sparkles className="w-3 h-3" />
+                                Live Now
+                              </div>
+                              <h3 className="text-2xl font-serif italic">{game.title}</h3>
+                              <p className="text-white/40 text-base font-light leading-relaxed">{game.desc}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                </>
+              )}
+
+              {/* Feed Controls */}
+              <div className="space-y-12">
+                <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-12">
+                  <div className="space-y-4">
+                    <h3 className="text-4xl md:text-6xl font-serif italic">
+                      {targetUsername ? `Whispers from @${targetUsername}` : 'Recent Whispers'}
+                    </h3>
+                    <p className="text-xl text-white/30 font-light">
+                      {targetUsername ? 'Exploring anonymous thoughts from this user' : 'What the world is thinking right now'}
+                    </p>
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center gap-6">
+                    <div className="flex items-center gap-1.5 md:gap-2 bg-white/5 p-1.5 md:p-2 rounded-xl md:rounded-2xl border border-white/10">
+                      {['Latest', 'Trending'].map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setSortBy(s.toLowerCase() as any)}
+                          className={cn(
+                            "px-4 md:px-8 py-2 md:py-3 rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium transition-all",
+                            sortBy === s.toLowerCase() ? "bg-white text-black shadow-xl" : "text-white/40 hover:text-white hover:bg-white/5"
+                          )}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                    <button className="p-2.5 md:p-4 rounded-xl md:rounded-2xl bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 transition-all">
+                      <Filter className="w-4 h-4 md:w-6 md:h-6" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filters Bar */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                  <div className="glass p-3 md:p-6 rounded-[1.25rem] md:rounded-[2.5rem] border border-white/5 flex items-center gap-3 md:gap-4 overflow-x-auto no-scrollbar">
+                    <Filter className="w-3.5 h-3.5 md:w-5 md:h-5 text-white/20 flex-shrink-0" />
+                    {CATEGORIES.map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => setCategory(cat)}
+                        className={cn(
+                          "px-3 md:px-6 py-1.5 md:py-2.5 rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium transition-all whitespace-nowrap",
+                          category === cat 
+                            ? "bg-white text-black shadow-lg" 
+                            : "text-white/40 hover:text-white hover:bg-white/5"
+                        )}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="glass p-3 md:p-6 rounded-[1.25rem] md:rounded-[2.5rem] border border-white/5 flex items-center gap-4 md:gap-6">
+                    <div className="flex items-center gap-2 md:gap-3 overflow-x-auto no-scrollbar">
+                      <span className="text-[8px] md:text-[10px] uppercase tracking-[0.2em] text-white/20 font-mono">Community</span>
+                      {['All', 'College', 'City', 'Workplace'].map((type) => (
+                        <button
+                          key={type}
+                          onClick={() => {
+                            setCommunityType(type as any);
+                            if (type === 'All') setCommunityName('');
+                          }}
+                          className={cn(
+                            "px-2.5 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[9px] md:text-xs font-medium transition-all border",
+                            communityType === type 
+                              ? "bg-accent/20 text-accent border-accent/30" 
+                              : "text-white/30 border-white/5 hover:border-white/20"
+                          )}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                    {communityType !== 'All' && (
+                      <div className="flex-1">
+                        <input 
+                          type="text"
+                          value={communityName}
+                          onChange={(e) => setCommunityName(e.target.value)}
+                          placeholder={`Enter ${communityType} name...`}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-2 text-sm focus:outline-none focus:border-accent/50 transition-all placeholder:text-white/10"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Mood Filter */}
+                <div className="flex items-center gap-2 md:gap-4 overflow-x-auto no-scrollbar pb-4">
+                  {MOODS.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => setMoodFilter(m.id)}
+                      className={cn(
+                        "flex items-center gap-2 md:gap-3 px-4 md:px-8 py-2 md:py-4 rounded-[1.25rem] md:rounded-[2rem] border transition-all whitespace-nowrap group",
+                        moodFilter === m.id
+                          ? "bg-accent text-white border-accent shadow-2xl shadow-accent/40 scale-105"
+                          : "bg-white/5 text-white/60 border-white/10 hover:border-white/30 hover:bg-white/10"
+                      )}
+                    >
+                      <span className="text-lg md:text-2xl group-hover:scale-125 transition-transform">{m.emoji}</span>
+                      <span className="text-[10px] md:text-sm font-bold uppercase tracking-widest">{m.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Feed Content */}
+              {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="glass h-80 rounded-[2.5rem] animate-pulse bg-white/5" />
+                  ))}
+                </div>
+              ) : confessions.length === 0 ? (
+                <div className="text-center py-12 md:py-20 glass rounded-[1.5rem] md:rounded-[2rem] border-dashed border-2 border-white/5 mx-auto max-w-2xl">
+                  <div className="w-12 h-12 md:w-16 md:h-16 mx-auto mb-4 md:mb-6 opacity-20">
+                    <Logo />
+                  </div>
+                  <h4 className="text-xl md:text-2xl font-serif italic text-white/40">The silence is deafening...</h4>
+                  <p className="text-white/20 mt-2 md:mt-3 text-xs md:text-base">Be the first to speak in this shadow.</p>
+                  <button 
+                    onClick={() => setShowForm(true)}
+                    className="mt-6 md:mt-8 bg-accent/10 text-accent px-6 py-2.5 md:px-8 md:py-3 rounded-lg md:rounded-xl border border-accent/20 hover:bg-accent hover:text-white transition-all font-bold text-xs md:text-sm"
+                  >
+                    Share a Secret
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8">
+                  <AnimatePresence mode="popLayout">
+                    {confessions.map((c) => (
+                      <ConfessionCard 
+                        key={c.id} 
+                        confession={c} 
+                        onProfileClick={handleProfileClick} 
+                        currentUserProfile={userProfile}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              )}
+            </motion.div>
+          ) : view === 'profile' ? (
+            <motion.div
+              key="profile"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
             >
-              <AdminDashboard />
+              <UserProfilePage 
+                username={targetUsername} 
+                onClose={() => setView('feed')} 
+                onViewChange={(v) => setView(v as any)}
+                currentUserProfile={userProfile}
+              />
+            </motion.div>
+          ) : view === 'leaderboard' ? (
+            <motion.div
+              key="leaderboard"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+            >
+              <Leaderboard />
+            </motion.div>
+          ) : view === 'trusted' ? (
+            <motion.div
+              key="trusted"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-16"
+            >
+              <div className="text-center max-w-3xl mx-auto space-y-6">
+                <h2 className="text-6xl md:text-8xl font-serif italic leading-tight">
+                  Trusted <span className="text-accent">Circle</span>
+                </h2>
+                <p className="text-white/40 text-2xl font-light">
+                  Confessions shared only with you and a few other trusted souls.
+                </p>
+                {!auth.currentUser?.email && (
+                  <div className="p-6 bg-yellow-500/10 border border-yellow-500/20 rounded-[2rem] text-yellow-500 text-lg flex items-center justify-center gap-4">
+                    <ShieldAlert className="w-6 h-6" />
+                    <span>You must be signed in with Google to see private confessions.</span>
+                  </div>
+                )}
+              </div>
+
+              {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="glass h-80 rounded-[2.5rem] animate-pulse bg-white/5" />
+                  ))}
+                </div>
+              ) : confessions.length === 0 ? (
+                <div className="text-center py-12 md:py-20 glass rounded-[1.5rem] md:rounded-[2rem] border-dashed border-2 border-white/5 opacity-40 italic font-serif text-lg md:text-xl mx-auto max-w-2xl">
+                  No private whispers for you yet...
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                  {confessions.map((c) => (
+                    <ConfessionCard key={c.id} confession={c} onProfileClick={handleProfileClick} currentUserProfile={userProfile} />
+                  ))}
+                </div>
+              )}
             </motion.div>
           ) : view === 'battles' ? (
             <motion.div
@@ -493,265 +736,16 @@ function AppContent() {
             >
               <UserStats />
             </motion.div>
-          ) : view === 'profile' ? (
+          ) : view === 'admin' ? (
             <motion.div
-              key="profile"
+              key="admin"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
             >
-              <UserProfilePage 
-                username={targetUsername} 
-                onClose={() => setView('feed')} 
-                onViewChange={(v) => setView(v)}
-              />
+              <AdminDashboard onProfileClick={handleProfileClick} />
             </motion.div>
-          ) : view === 'leaderboard' ? (
-            <motion.div
-              key="leaderboard"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <Leaderboard />
-            </motion.div>
-          ) : view === 'trusted' ? (
-            <motion.div
-              key="trusted"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-12"
-            >
-              <div className="text-center max-w-2xl mx-auto space-y-4">
-                <h2 className="text-5xl md:text-7xl font-serif italic leading-tight">
-                  Trusted <span className="text-accent">Circle</span>
-                </h2>
-                <p className="text-white/40 text-lg">
-                  Confessions shared only with you and a few others.
-                </p>
-                {!auth.currentUser?.email && (
-                  <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl text-yellow-500 text-sm">
-                    You must be signed in with Google to see private confessions you've been invited to.
-                  </div>
-                )}
-              </div>
-
-              {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {[...Array(3)].map((_, i) => (
-                    <div key={i} className="glass h-64 rounded-2xl animate-pulse bg-white/5" />
-                  ))}
-                </div>
-              ) : confessions.length === 0 ? (
-                <div className="text-center py-20 opacity-40 italic font-serif text-xl">
-                  No private whispers for you yet...
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {confessions.map((c) => (
-                    <ConfessionCard key={c.id} confession={c} onProfileClick={handleProfileClick} />
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="feed"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-12"
-            >
-              {/* Hero Section */}
-            <div className="text-center max-w-2xl mx-auto space-y-4">
-              <h2 className="text-5xl md:text-7xl font-serif italic leading-tight">
-                What's your <span className="text-accent">secret?</span>
-              </h2>
-              <p className="text-white/40 text-lg">
-                The world is listening, but they don't know it's you.
-              </p>
-            </div>
-
-            {/* Daily Prompt */}
-            <DailyPromptSection onAnswer={() => { setInitialCategory('Daily Prompt'); setShowForm(true); }} />
-
-            {/* Game Promotion */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <button
-                onClick={() => setView('battles')}
-                className="group relative overflow-hidden glass p-6 rounded-3xl border border-white/5 hover:border-accent/30 transition-all text-left"
-              >
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <Swords className="w-20 h-20" />
-                </div>
-                <div className="relative z-10 space-y-2">
-                  <div className="flex items-center gap-2 text-accent font-mono text-[10px] uppercase tracking-widest">
-                    <Sparkles className="w-3 h-3" />
-                    New Game
-                  </div>
-                  <h3 className="text-xl font-serif italic">Confession Battles</h3>
-                  <p className="text-white/40 text-sm">Vote on the most relatable secrets.</p>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setView('leaderboard')}
-                className="group relative overflow-hidden glass p-6 rounded-3xl border border-white/5 hover:border-accent/30 transition-all text-left"
-              >
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <Trophy className="w-20 h-20" />
-                </div>
-                <div className="relative z-10 space-y-2">
-                  <div className="flex items-center gap-2 text-accent font-mono text-[10px] uppercase tracking-widest">
-                    <TrendingUp className="w-3 h-3" />
-                    Rankings
-                  </div>
-                  <h3 className="text-xl font-serif italic">Anonymous Leaderboard</h3>
-                  <p className="text-white/40 text-sm">See who's the most relatable whisperer.</p>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setView('truth')}
-                className="group relative overflow-hidden glass p-6 rounded-3xl border border-white/5 hover:border-purple-500/30 transition-all text-left"
-              >
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <Brain className="w-20 h-20" />
-                </div>
-                <div className="relative z-10 space-y-2">
-                  <div className="flex items-center gap-2 text-purple-400 font-mono text-[10px] uppercase tracking-widest">
-                    <Sparkles className="w-3 h-3" />
-                    AI Challenge
-                  </div>
-                  <h3 className="text-xl font-serif italic">Guess the Truth</h3>
-                  <p className="text-white/40 text-sm">Can you spot the human among machines?</p>
-                </div>
-              </button>
-            </div>
-
-            {/* Mood Filter */}
-            <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-4 scroll-smooth">
-              {MOODS.map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => setMoodFilter(m.id)}
-                  className={cn(
-                    "flex items-center gap-2 px-6 py-3 rounded-2xl border transition-all whitespace-nowrap group",
-                    moodFilter === m.id
-                      ? "bg-accent text-white border-accent shadow-lg shadow-accent/20 scale-105"
-                      : "bg-white/5 text-white/60 border-white/10 hover:border-white/30 hover:bg-white/10"
-                  )}
-                >
-                  <span className="text-xl group-hover:scale-125 transition-transform">{m.emoji}</span>
-                  <span className="text-sm font-medium">{m.label}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Filters */}
-            <div className="space-y-4">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 glass p-4 rounded-2xl border border-white/5">
-                <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 no-scrollbar">
-                  <Filter className="w-4 h-4 text-white/20 mr-2 flex-shrink-0" />
-                  {CATEGORIES.map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setCategory(cat)}
-                      className={cn(
-                        "px-4 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                        category === cat 
-                          ? "bg-white text-black" 
-                          : "text-white/40 hover:text-white hover:bg-white/5"
-                      )}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex items-center gap-2 bg-black/20 p-1 rounded-xl border border-white/5">
-                  <button
-                    onClick={() => setSortBy('latest')}
-                    className={cn(
-                      "flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-medium transition-all",
-                      sortBy === 'latest' ? "bg-white/10 text-white" : "text-white/40 hover:text-white"
-                    )}
-                  >
-                    <Clock className="w-3.5 h-3.5" />
-                    Latest
-                  </button>
-                  <button
-                    onClick={() => setSortBy('trending')}
-                    className={cn(
-                      "flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-medium transition-all",
-                      sortBy === 'trending' ? "bg-white/10 text-white" : "text-white/40 hover:text-white"
-                    )}
-                  >
-                    <TrendingUp className="w-3.5 h-3.5" />
-                    Trending
-                  </button>
-                </div>
-              </div>
-
-              {/* Community Filters */}
-              <div className="flex flex-col md:flex-row items-center gap-4 glass p-4 rounded-2xl border border-white/5">
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                  <span className="text-[10px] uppercase tracking-widest text-white/20 font-mono mr-2">Community</span>
-                  {['All', 'College', 'City', 'Workplace'].map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => {
-                        setCommunityType(type as any);
-                        if (type === 'All') setCommunityName('');
-                      }}
-                      className={cn(
-                        "px-3 py-1 rounded-lg text-[10px] font-medium transition-all border",
-                        communityType === type 
-                          ? "bg-blue-500/20 text-blue-400 border-blue-500/30" 
-                          : "text-white/30 border-white/5 hover:border-white/20"
-                      )}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-                {communityType !== 'All' && (
-                  <div className="flex-1 w-full">
-                    <input 
-                      type="text"
-                      value={communityName}
-                      onChange={(e) => setCommunityName(e.target.value)}
-                      placeholder={`Search ${communityType} name...`}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-1.5 text-xs focus:outline-none focus:border-blue-500/50 transition-colors"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Feed */}
-            {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="glass h-64 rounded-2xl animate-pulse bg-white/5" />
-                ))}
-              </div>
-            ) : confessions.length === 0 ? (
-              <div className="text-center py-20 opacity-40 italic font-serif text-xl">
-                The silence is deafening... be the first to speak.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <AnimatePresence mode="popLayout">
-                  {confessions.map((c) => (
-                    <ConfessionCard key={c.id} confession={c} onProfileClick={handleProfileClick} />
-                  ))}
-                </AnimatePresence>
-              </div>
-            )}
-          </motion.div>
-        )}
+          ) : null}
       </AnimatePresence>
     </main>
 
@@ -762,21 +756,24 @@ function AppContent() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-0 md:p-6 bg-black/80 backdrop-blur-md"
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
           >
             <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="w-full h-full md:h-auto md:max-w-2xl relative bg-background md:rounded-3xl overflow-y-auto no-scrollbar"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-zinc-900 border border-white/10 rounded-[2.5rem] w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col shadow-2xl relative"
             >
+              {/* Close Button */}
               <button
                 onClick={() => setShowForm(false)}
-                className="absolute top-4 right-4 md:-top-12 md:right-0 p-2 text-white/40 hover:text-white transition-colors z-10"
+                className="absolute top-6 right-6 z-[110] p-2 text-white/40 hover:text-white transition-all hover:rotate-90 bg-white/5 rounded-full"
               >
-                <X className="w-8 h-8" />
+                <X className="w-6 h-6" />
               </button>
-              <div className="p-4 md:p-0">
+
+              {/* Scrollable Content Area */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-10">
                 <ConfessionForm 
                   onComplete={() => { setShowForm(false); setInitialCategory(undefined); }} 
                   initialCategory={initialCategory}
@@ -791,51 +788,61 @@ function AppContent() {
       <SurpriseConfessionDrop />
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass border-t border-white/5 px-4 py-3 flex items-center justify-around backdrop-blur-xl">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass border-t border-white/5 px-2 py-2 flex items-center justify-between gap-1 backdrop-blur-xl">
         <button
           onClick={() => { setTargetUsername(undefined); setView('feed'); setCategory('All'); setCommunityType('All'); setCommunityName(''); setMoodFilter('All'); }}
           className={cn(
-            "flex flex-col items-center gap-1 transition-all",
+            "flex flex-col items-center gap-0.5 transition-all flex-1",
             view === 'feed' && !targetUsername ? "text-accent" : "text-white/40"
           )}
         >
-          <Home className="w-6 h-6" />
-          <span className="text-[10px]">Home</span>
+          <Home className="w-5 h-5" />
+          <span className="text-[8px] font-medium">Home</span>
         </button>
         <button
           onClick={() => { setTargetUsername(undefined); setView('trusted' === view ? 'feed' : 'trusted'); }}
           className={cn(
-            "flex flex-col items-center gap-1 transition-all",
+            "flex flex-col items-center gap-0.5 transition-all flex-1",
             view === 'trusted' ? "text-accent" : "text-white/40"
           )}
         >
-          <ShieldAlert className="w-6 h-6" />
-          <span className="text-[10px]">Trusted</span>
+          <ShieldAlert className="w-5 h-5" />
+          <span className="text-[8px] font-medium">Trusted</span>
         </button>
         <button
           onClick={() => { setTargetUsername(undefined); setView('battles' === view ? 'feed' : 'battles'); }}
           className={cn(
-            "flex flex-col items-center gap-1 transition-all",
+            "flex flex-col items-center gap-0.5 transition-all flex-1",
             view === 'battles' ? "text-accent" : "text-white/40"
           )}
         >
-          <Swords className="w-6 h-6" />
-          <span className="text-[10px]">Battles</span>
+          <Swords className="w-5 h-5" />
+          <span className="text-[8px] font-medium">Battles</span>
         </button>
         <button
           onClick={() => { setTargetUsername(undefined); setView('truth' === view ? 'feed' : 'truth'); }}
           className={cn(
-            "flex flex-col items-center gap-1 transition-all",
+            "flex flex-col items-center gap-0.5 transition-all flex-1",
             view === 'truth' ? "text-accent" : "text-white/40"
           )}
         >
-          <Brain className="w-6 h-6" />
-          <span className="text-[10px]">Truth</span>
+          <Brain className="w-5 h-5" />
+          <span className="text-[8px] font-medium">Truth</span>
+        </button>
+        <button
+          onClick={() => { setTargetUsername(undefined); setView('leaderboard' === view ? 'feed' : 'leaderboard'); }}
+          className={cn(
+            "flex flex-col items-center gap-0.5 transition-all flex-1",
+            view === 'leaderboard' ? "text-accent" : "text-white/40"
+          )}
+        >
+          <Trophy className="w-5 h-5" />
+          <span className="text-[8px] font-medium">Top</span>
         </button>
         <button
           onClick={() => { setTargetUsername(undefined); setView('profile' === view ? 'feed' : 'profile'); }}
           className={cn(
-            "flex flex-col items-center gap-1 transition-all",
+            "flex flex-col items-center gap-0.5 transition-all flex-1",
             view === 'profile' && !targetUsername ? "text-accent" : "text-white/40"
           )}
         >
@@ -843,13 +850,13 @@ function AppContent() {
             <img 
               src={userProfile.avatarUrl} 
               alt={userProfile.username}
-              className={cn("w-6 h-6 rounded-full bg-white/5 border", view === 'profile' ? "border-accent" : "border-transparent")}
+              className={cn("w-5 h-5 rounded-full bg-white/5 border", view === 'profile' ? "border-accent" : "border-transparent")}
               referrerPolicy="no-referrer"
             />
           ) : (
-            <User className="w-6 h-6" />
+            <User className="w-5 h-5" />
           )}
-          <span className="text-[10px]">Profile</span>
+          <span className="text-[8px] font-medium">Profile</span>
         </button>
       </nav>
 

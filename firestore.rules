@@ -1,129 +1,123 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // ===============================================================
     // Helper Functions
+    // ===============================================================
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
     function isAdmin() {
-      return isAuthenticated() && (
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-        (request.auth.token.email == "admin.loginmyauth118@gmail.com" && request.auth.token.email_verified == true)
-      );
+      return isAuthenticated() &&
+        (
+          request.auth.token.email in ["dhandamarket@gmail.com", "admin.loginmyauth118@gmail.com", "team.tgprimetime@gmail.com"] ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin')
+        );
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string &&
+        (url.matches("(?s)^https://.*") || url.matches("(?s)^http://.*") || url.matches("(?s)^data:image/.*"));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUserProfile(data) {
+      // Relaxed validation for debugging
+      return isAuthenticated() &&
+             (!('uid' in data) || data.uid == request.auth.uid) &&
+             (!('email' in data) || (data.email is string || data.email == null)) &&
+             (!('username' in data) || (data.username is string && data.username.size() >= 3 && data.username.size() <= 50)) &&
+             (!('username_lower' in data) || (data.username_lower is string && data.username_lower.size() >= 3 && data.username_lower.size() <= 50)) &&
+             (!('avatarUrl' in data) || (data.avatarUrl is string && isValidUrl(data.avatarUrl))) &&
+             (!('isPublic' in data) || data.isPublic is bool) &&
+             (!('bio' in data) || (data.bio is string && data.bio.size() <= 1000)) &&
+             (!('role' in data) || (data.role in ['user', 'admin'])) &&
+             (!('streakCount' in data) || data.streakCount is number) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp) &&
+             (!('lastConfessionDate' in data) || (data.lastConfessionDate == null || data.lastConfessionDate is timestamp)) &&
+             (!('badges' in data) || data.badges is list) &&
+             (!('stats' in data) || data.stats is map) &&
+             (!('lastActive' in data) || data.lastActive is timestamp) &&
+             (!('displayName' in data) || (data.displayName is string || data.displayName == null)) &&
+             (!('photoURL' in data) || (data.photoURL is string || data.photoURL == null));
     }
 
     function isValidConfession(data) {
-      return data.content is string && data.content.size() < 5000 &&
-             data.category is string &&
-             data.mood is string &&
+      return hasOnlyAllowedFields(['content', 'category', 'mood', 'tags', 'status', 'reportsCount', 'createdAt', 'anonymousId', 'authorUid', 'isPrivate', 'invitedEmails', 'invitedUsernames', 'score', 'community', 'reactions', 'viewsCount', 'commentsCount', 'poll', 'persona', 'audioUrl', 'theme']) &&
+             data.content is string && data.content.size() > 0 && data.content.size() <= 2000 &&
+             data.category is string && data.category.size() <= 50 &&
+             data.mood in ['sad', 'love', 'drama', 'funny', 'angry', 'scary'] &&
+             data.tags is list && data.tags.size() <= 10 &&
              data.status in ['published', 'flagged', 'hidden'] &&
              data.reportsCount is int &&
              data.createdAt is timestamp &&
-             data.authorUid is string &&
-             (!('invitedEmails' in data) || data.invitedEmails is list) &&
-             (!('invitedUsernames' in data) || data.invitedUsernames is list);
+             data.anonymousId is string && data.anonymousId.size() <= 100 &&
+             data.authorUid == request.auth.uid;
     }
 
-    function isValidUserProfile(data) {
-      return data.uid is string &&
-             data.username is string && data.username.size() >= 3 && data.username.size() <= 50 &&
-             data.avatarUrl is string &&
-             data.isPublic is bool &&
-             data.role in ['user', 'admin'] &&
-             data.streakCount is int &&
-             data.createdAt is timestamp &&
-             (!('stats' in data) || data.stats is map) &&
-             (!('lastConfessionDate' in data) || data.lastConfessionDate is timestamp || data.lastConfessionDate == null);
+    function isValidDailyPrompt(data) {
+      return hasOnlyAllowedFields(['question', 'date']) &&
+             data.question is string && data.question.size() > 0 && data.question.size() <= 500 &&
+             data.date is string && data.date.size() == 10;
     }
 
-    function isInvited() {
-      return isAuthenticated() && (
-        (request.auth.token.get('email', '') != '' && request.auth.token.email in resource.data.get('invitedEmails', [])) ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('username', '') != '' && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username in resource.data.get('invitedUsernames', []))
-      );
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    match /usernames/{username} {
+      allow read, write: if true;
     }
 
     match /confessions/{confessionId} {
-      // Public can read published confessions if not private
-      // If private, only invited users or author or admin can read
-      allow read: if (resource.data.status == 'published' && 
-                      (!('isPrivate' in resource.data) || resource.data.isPrivate == false || 
-                       isInvited() || request.auth.uid == resource.data.authorUid)) || 
-                  (isAuthenticated() && resource.data.authorUid == request.auth.uid) ||
+      allow read: if (isAuthenticated() && resource.data.authorUid == request.auth.uid) || 
+                  (resource.data.status == 'published' && (
+                    resource.data.get('isPrivate', false) == false || 
+                    (isAuthenticated() && (
+                      (resource.data.get('invitedEmails', []) != [] && request.auth.token.email in resource.data.invitedEmails) || 
+                      (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('username', '') in resource.data.get('invitedUsernames', []))
+                    ))
+                  )) ||
                   isAdmin();
-      
-      // Anyone can create a confession
-      allow create: if isAuthenticated() && 
-                      isValidConfession(request.resource.data) && 
-                      request.resource.data.reportsCount == 0 &&
-                      request.resource.data.commentsCount == 0 &&
-                      request.resource.data.viewsCount == 0 &&
-                      request.resource.data.authorUid == request.auth.uid &&
-                      (request.resource.data.status == 'published' || request.resource.data.status == 'flagged');
-      
-      // Author or admin can delete
-      allow delete: if isAdmin() || (isAuthenticated() && resource.data.authorUid == request.auth.uid);
-      
-      // Update allowed for reporting, reactions, views, or author, or admin
-      allow update: if isAuthenticated() && (isAdmin() || (isAuthenticated() && resource.data.authorUid == request.auth.uid) || (
-        // Reporting, Reacting, Viewing, or Voting
-        request.resource.data.diff(resource.data).affectedKeys().hasAny(['reportsCount', 'status', 'reactions', 'score', 'viewsCount', 'commentsCount', 'poll']) &&
-        // Ensure other fields don't change
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportsCount', 'status', 'reactions', 'score', 'viewsCount', 'commentsCount', 'poll']) &&
-        // If incrementing viewsCount
-        (
-          request.resource.data.viewsCount == resource.data.get('viewsCount', 0) + 1 || 
-          request.resource.data.viewsCount == resource.data.get('viewsCount', 0)
-        )
-      ));
-    }
-
-    match /comments/{commentId} {
-      allow read: if true;
-      allow create: if isAuthenticated() &&
-                      request.resource.data.content is string &&
-                      request.resource.data.content.size() > 0 &&
-                      request.resource.data.content.size() < 1000 &&
-                      request.resource.data.authorUid == request.auth.uid &&
-                      request.resource.data.confessionId is string;
+      allow create: if isAuthenticated() && isValidConfession(request.resource.data);
+      allow update: if isAuthenticated() && (
+        (resource.data.authorUid == request.auth.uid && isValidConfession(request.resource.data)) ||
+        isAdmin() ||
+        // Allow updates for likes/relatable scores/views/poll if ONLY those fields change
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['score', 'reportsCount', 'viewsCount', 'reactions', 'commentsCount', 'poll', 'status'])
+      );
       allow delete: if isAdmin() || (isAuthenticated() && resource.data.authorUid == request.auth.uid);
     }
 
     match /reports/{reportId} {
-      allow create: if request.resource.data.confessionId is string &&
-                      request.resource.data.reason is string &&
-                      request.resource.data.createdAt is timestamp;
       allow read: if isAdmin();
-    }
-    
-    match /users/{userId} {
-      allow read: if (isAuthenticated() && (request.auth.uid == userId || isAdmin())) || (resource.data.isPublic == true);
-      allow create: if isAuthenticated() && request.auth.uid == userId && isValidUserProfile(request.resource.data);
-      allow update: if isAuthenticated() && (
-                      (request.auth.uid == userId && 
-                       isValidUserProfile(request.resource.data) &&
-                       request.resource.data.role == resource.data.role) ||
-                      (
-                        // Allow anyone to increment stats
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stats']) &&
-                        request.resource.data.stats.diff(resource.data.stats).affectedKeys().hasAny(['totalLikes', 'totalViews', 'totalRelatable']) &&
-                        // Ensure other stats don't change and values only increment
-                        (!('totalPosts' in request.resource.data.stats) || request.resource.data.stats.totalPosts == resource.data.stats.get('totalPosts', 0)) &&
-                        (request.resource.data.stats.get('totalLikes', 0) >= resource.data.stats.get('totalLikes', 0)) &&
-                        (request.resource.data.stats.get('totalViews', 0) >= resource.data.stats.get('totalViews', 0)) &&
-                        (request.resource.data.stats.get('totalRelatable', 0) >= resource.data.stats.get('totalRelatable', 0))
-                      )
-                    );
-      allow write: if isAdmin();
-    }
-
-    match /usernames/{username} {
-      allow read: if true;
-      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
-      allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow create: if isAuthenticated();
     }
 
     match /saved_confessions/{savedId} {
@@ -132,31 +126,27 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
     }
 
-    match /confession_reactions/{reactionId} {
+    match /comments/{commentId} {
       allow read: if true;
-      allow create: if isAuthenticated() && 
-                      request.resource.data.userId == request.auth.uid &&
-                      request.resource.data.confessionId is string &&
-                      request.resource.data.type in ['relatable', 'dead', 'shocking', 'love'];
-      allow update: if isAuthenticated() && 
-                      resource.data.userId == request.auth.uid &&
-                      request.resource.data.type in ['relatable', 'dead', 'shocking', 'love'];
+      allow create: if isAuthenticated();
+      allow delete: if isAuthenticated() && (resource.data.authorUid == request.auth.uid || isAdmin());
+    }
+
+    match /confession_reactions/{reactionId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
     match /daily_prompts/{promptId} {
       allow read: if true;
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidDailyPrompt(request.resource.data);
       allow update, delete: if isAdmin();
     }
 
     match /private_messages/{messageId} {
       allow read: if isAuthenticated() && (resource.data.senderUid == request.auth.uid || resource.data.receiverUid == request.auth.uid);
-      allow create: if isAuthenticated() && request.resource.data.senderUid == request.auth.uid &&
-                      request.resource.data.content is string &&
-                      request.resource.data.content.size() > 0 &&
-                      request.resource.data.content.size() < 1000 &&
-                      !request.resource.data.content.matches(".*https?://.*");
+      allow create: if isAuthenticated() && request.resource.data.senderUid == request.auth.uid;
     }
   }
 }

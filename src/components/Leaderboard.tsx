@@ -45,13 +45,13 @@ export default function Leaderboard() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between mb-8">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-serif italic">Hall of <span className="text-accent">Secrets</span></h2>
-          <p className="text-white/40 text-sm">The most resonant voices in the shadows.</p>
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex items-center justify-between mb-6 md:mb-8">
+        <div className="space-y-0.5 md:space-y-1">
+          <h2 className="text-2xl md:text-3xl font-serif italic">Hall of <span className="text-accent">Secrets</span></h2>
+          <p className="text-white/40 text-[10px] md:text-sm uppercase tracking-widest">The most resonant voices in the shadows.</p>
         </div>
-        <Trophy className="w-10 h-10 text-accent opacity-20" />
+        <Trophy className="w-8 h-8 md:w-10 md:h-10 text-accent opacity-20" />
       </div>
 
       <div className="space-y-3">
@@ -63,42 +63,42 @@ export default function Leaderboard() {
             transition={{ delay: idx * 0.05 }}
             className="glass p-4 rounded-2xl border border-white/5 flex items-center justify-between group hover:border-accent/30 transition-all"
           >
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 md:gap-4">
               <div className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center font-mono text-xs font-bold",
+                "w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center font-mono text-[10px] md:text-xs font-bold",
                 idx === 0 ? "bg-accent text-white" : 
                 idx === 1 ? "bg-white/20 text-white" :
                 idx === 2 ? "bg-white/10 text-white/60" : "text-white/20"
               )}>
                 {idx + 1}
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 md:gap-3">
                 <img 
                   src={user.avatarUrl} 
                   alt="" 
-                  className="w-10 h-10 rounded-xl bg-white/5 grayscale group-hover:grayscale-0 transition-all"
+                  className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-white/5 grayscale group-hover:grayscale-0 transition-all"
                 />
                 <div>
-                  <div className="font-mono text-sm text-white/90">@{user.username}</div>
-                  <div className="text-[10px] text-white/30 uppercase tracking-widest">Streak: {user.streakCount} days</div>
+                  <div className="font-mono text-xs md:text-sm text-white/90">@{user.username}</div>
+                  <div className="text-[8px] md:text-[10px] text-white/30 uppercase tracking-widest">Streak: {user.streakCount} days</div>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 md:gap-6">
               <div className="text-center">
-                <div className="flex items-center gap-1 text-accent text-xs font-bold">
-                  <Heart className="w-3 h-3" />
+                <div className="flex items-center gap-1 text-accent text-[10px] md:text-xs font-bold">
+                  <Heart className="w-2.5 h-2.5 md:w-3 md:h-3" />
                   {user.stats?.totalRelatable || 0}
                 </div>
-                <div className="text-[8px] text-white/20 uppercase tracking-widest">Relatable</div>
+                <div className="text-[7px] md:text-[8px] text-white/20 uppercase tracking-widest">Relatable</div>
               </div>
-              <div className="text-center hidden sm:block">
-                <div className="flex items-center gap-1 text-white/60 text-xs font-bold">
-                  <Eye className="w-3 h-3" />
+              <div className="text-center hidden xs:block">
+                <div className="flex items-center gap-1 text-white/60 text-[10px] md:text-xs font-bold">
+                  <Eye className="w-2.5 h-2.5 md:w-3 md:h-3" />
                   {user.stats?.totalViews || 0}
                 </div>
-                <div className="text-[8px] text-white/20 uppercase tracking-widest">Views</div>
+                <div className="text-[7px] md:text-[8px] text-white/20 uppercase tracking-widest">Views</div>
               </div>
             </div>
           </motion.div>

@@ -1,64 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { db, auth } from '../firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, onSnapshot, orderBy, limit, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
-import { Confession } from '../types';
+import { UserProfile, Confession } from '../types';
 import ConfessionCard from './ConfessionCard';
-import { Shield, LogIn, LogOut, Loader2, Search, Filter } from 'lucide-react';
+import Logo from './Logo';
+import { Shield, LogIn, LogOut, Loader2, Filter, Download } from 'lucide-react';
 
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
-
-export default function AdminDashboard() {
+export default function AdminDashboard({ onProfileClick = () => {} }: { onProfileClick?: (username: string) => void }) {
   const [user, setUser] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [confessions, setConfessions] = useState<Confession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,7 +19,18 @@ export default function AdminDashboard() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      setIsAdmin(u?.email === 'admin.loginmyauth118@gmail.com');
+      setIsAdmin(u?.email === 'admin.loginmyauth118@gmail.com' || u?.email === 'dhandamarket@gmail.com' || u?.email === 'team.tgprimetime@gmail.com');
+      
+      if (u) {
+        const profileRef = doc(db, 'users', u.uid);
+        onSnapshot(profileRef, (doc) => {
+          if (doc.exists()) {
+            setUserProfile(doc.data() as UserProfile);
+          }
+        });
+      } else {
+        setUserProfile(null);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -179,8 +141,45 @@ export default function AdminDashboard() {
               {f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
-          <button onClick={handleLogout} className="p-2 text-white/40 hover:text-white transition-colors ml-2">
+          <button onClick={handleLogout} className="p-2 text-white/40 hover:text-white transition-colors ml-2" title="Logout">
             <LogOut className="w-5 h-5" />
+          </button>
+          <a 
+            href="/logo.svg" 
+            download="cloak-confess-logo.svg"
+            className="p-2 text-white/40 hover:text-white transition-colors"
+            title="Download Logo (SVG)"
+          >
+            <Download className="w-5 h-5" />
+          </a>
+          <button
+            onClick={() => {
+              const svg = document.querySelector('svg');
+              if (!svg) return;
+              const svgData = new XMLSerializer().serializeToString(svg);
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              const img = new Image();
+              const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+              const url = URL.createObjectURL(svgBlob);
+              img.onload = () => {
+                canvas.width = 1000;
+                canvas.height = 1000;
+                ctx?.drawImage(img, 0, 0, 1000, 1000);
+                URL.revokeObjectURL(url);
+                const pngUrl = canvas.toDataURL('image/png');
+                const downloadLink = document.createElement('a');
+                downloadLink.href = pngUrl;
+                downloadLink.download = 'cloak-confess-logo.png';
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+              };
+              img.src = url;
+            }}
+            className="px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-[10px] text-white/40 hover:text-white hover:bg-white/10 transition-all"
+          >
+            PNG
           </button>
         </div>
       </div>
@@ -191,7 +190,9 @@ export default function AdminDashboard() {
         </div>
       ) : confessions.length === 0 ? (
         <div className="text-center py-20 glass rounded-2xl border border-dashed border-white/10">
-          <Search className="w-12 h-12 text-white/10 mx-auto mb-4" />
+          <div className="w-12 h-12 mx-auto mb-4 opacity-20">
+            <Logo />
+          </div>
           <p className="text-white/40">No confessions found in this queue.</p>
         </div>
       ) : (
@@ -202,6 +203,8 @@ export default function AdminDashboard() {
               confession={c} 
               isAdmin={true} 
               onAction={() => {}} 
+              onProfileClick={onProfileClick}
+              currentUserProfile={userProfile}
             />
           ))}
         </div>

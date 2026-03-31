@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { 
   doc, 
   getDoc, 
+  getDocFromServer,
   updateDoc, 
   collection, 
   query, 
@@ -11,7 +12,8 @@ import {
   orderBy, 
   deleteDoc,
   setDoc,
-  getDocs
+  getDocs,
+  serverTimestamp
 } from 'firebase/firestore';
 import { UserProfile, Confession, SavedConfession } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -33,7 +35,9 @@ import {
   Camera,
   LogOut,
   Shield,
-  LogIn
+  LogIn,
+  ChevronRight,
+  ChevronLeft
 } from 'lucide-react';
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import ConfessionCard from './ConfessionCard';
@@ -45,13 +49,37 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const AVATAR_CATEGORIES = [
+  {
+    id: 'men',
+    label: '1',
+    seeds: ['Felix', 'Max', 'Christopher', 'Oliver', 'George', 'Harry', 'Jack', 'Leo', 'Charlie', 'Noah']
+  },
+  {
+    id: 'women',
+    label: '2',
+    seeds: ['Aneka', 'Tiana', 'Sasha', 'Jocelyn', 'Kimberly', 'Lilly', 'Mia', 'Sophia', 'Isabella', 'Ava']
+  },
+  {
+    id: 'boys',
+    label: '3',
+    seeds: ['Jack', 'Leo', 'Charlie', 'Harry', 'Noah', 'Oliver', 'George', 'Max', 'Felix', 'Christopher']
+  },
+  {
+    id: 'girl',
+    label: '4',
+    seeds: ['Lilly', 'Mia', 'Sophia', 'Isabella', 'Ava', 'Aneka', 'Tiana', 'Sasha', 'Jocelyn', 'Kimberly']
+  }
+];
+
 interface UserProfilePageProps {
   username?: string; // If provided, view this user's profile
   onClose: () => void;
   onViewChange?: (view: any) => void;
+  currentUserProfile?: UserProfile | null;
 }
 
-export default function UserProfilePage({ username: targetUsername, onClose, onViewChange }: UserProfilePageProps) {
+export default function UserProfilePage({ username: targetUsername, onClose, onViewChange, currentUserProfile }: UserProfilePageProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -65,7 +93,12 @@ export default function UserProfilePage({ username: targetUsername, onClose, onV
   const [isPublic, setIsPublic] = useState(true);
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
   const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [newAvatarUrl, setNewAvatarUrl] = useState<string | null>(null);
+  const [selectedAvatarCategory, setSelectedAvatarCategory] = useState(AVATAR_CATEGORIES[0].id);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -137,7 +170,7 @@ export default function UserProfilePage({ username: targetUsername, onClose, onV
       });
       setUserConfessions(data);
     }, (err) => {
-      console.error("Error fetching user confessions:", err);
+      handleFirestoreError(err, OperationType.GET, 'confessions');
     });
 
     return () => unsubscribe();
@@ -200,12 +233,12 @@ export default function UserProfilePage({ username: targetUsername, onClose, onV
 
   const checkUsername = async (val: string) => {
     const username = val.toLowerCase().trim();
-    if (username === profile?.username) {
+    if (username === profile?.username.toLowerCase()) {
       setUsernameStatus('idle');
       return;
     }
 
-    if (!/^[a-z0-9_]{3,20}$/.test(username)) {
+    if (!/^[a-z0-9_]{3,50}$/.test(username)) {
       setUsernameStatus('invalid');
       return;
     }
@@ -224,30 +257,99 @@ export default function UserProfilePage({ username: targetUsername, onClose, onV
   const handleSaveSettings = async () => {
     if (!profile || !auth.currentUser) return;
     setSaving(true);
+    setSaveSuccess(false);
 
     try {
-      const updates: Partial<UserProfile> = {
+      const updates: any = {
         bio: editBio,
-        isPublic: isPublic
+        isPublic: isPublic,
+        updatedAt: serverTimestamp(),
+        lastActive: serverTimestamp()
       };
 
-      const newUsername = editUsername.toLowerCase().trim();
-      if (newUsername !== profile.username && usernameStatus === 'available') {
-        // Update username mapping
-        await deleteDoc(doc(db, 'usernames', profile.username));
-        await setDoc(doc(db, 'usernames', newUsername), { uid: auth.currentUser.uid });
-        updates.username = newUsername;
-        updates.avatarUrl = generateAvatarUrl(newUsername);
+      if (newAvatarUrl) {
+        updates.avatarUrl = newAvatarUrl;
       }
 
-      await updateDoc(doc(db, 'users', auth.currentUser.uid), updates);
-      setProfile({ ...profile, ...updates });
-      setActiveTab('posts');
+      const newUsername = editUsername.toLowerCase().trim();
+      const oldUsername = profile.username.toLowerCase().trim();
+
+      if (newUsername !== oldUsername && usernameStatus === 'available') {
+        console.log(`Updating username from ${oldUsername} to ${newUsername}`);
+        // Update username mapping
+        // We use toLowerCase() to ensure we target the correct document ID
+        try {
+          await deleteDoc(doc(db, 'usernames', oldUsername.toLowerCase()));
+          console.log("Deleted old username mapping");
+          await setDoc(doc(db, 'usernames', newUsername.toLowerCase()), { uid: auth.currentUser.uid });
+          console.log("Created new username mapping");
+        } catch (usernameErr) {
+          console.error("Error updating username mapping:", usernameErr);
+          handleFirestoreError(usernameErr, OperationType.WRITE, `usernames/${newUsername}`);
+          throw usernameErr;
+        }
+        
+        updates.username = newUsername;
+        updates.username_lower = newUsername;
+        // Only regenerate avatar if user hasn't uploaded a custom one
+        if (!newAvatarUrl) {
+          updates.avatarUrl = generateAvatarUrl(newUsername);
+        }
+      }
+
+      console.log("Updating profile with:", updates);
+      console.log("User ID:", auth.currentUser.uid);
+      
+      // Check if document exists before update
+      const docRef = doc(db, 'users', auth.currentUser.uid);
+      try {
+        const docSnap = await getDocFromServer(docRef);
+        console.log("Document exists before update:", docSnap.exists());
+      } catch (checkErr) {
+        console.error("Error checking document existence:", checkErr);
+        handleFirestoreError(checkErr, OperationType.GET, `users/${auth.currentUser.uid}`);
+      }
+      
+      await updateDoc(docRef, updates);
+      
+      const updatedProfile = { ...profile, ...updates };
+      setProfile(updatedProfile);
+      setSaveSuccess(true);
+      
+      // Reset username status to idle since it's now the current username
+      setUsernameStatus('idle');
+      
+      // Wait a bit to show success before switching back
+      setTimeout(() => {
+        setActiveTab('posts');
+        setSaveSuccess(false);
+      }, 1500);
     } catch (err) {
-      console.error("Error updating profile:", err);
+      console.error("Error saving settings:", err);
+      setError("Failed to save settings. Please try again.");
+      setTimeout(() => setError(null), 3000);
+      handleFirestoreError(err, OperationType.UPDATE, `users/${auth.currentUser.uid}`);
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Limit to 500KB to stay safe with Firestore document limits
+    if (file.size > 512 * 1024) {
+      setError("Image size should be less than 512KB");
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setNewAvatarUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -492,23 +594,19 @@ export default function UserProfilePage({ username: targetUsername, onClose, onV
                 </div>
                 {activeTab === 'settings' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent" />}
               </button>
-            </>
-          )}
 
-          {isOwnProfile && (
-            <button 
-              onClick={() => setActiveTab('settings')}
-              className={cn(
-                "pb-4 text-sm font-medium tracking-widest uppercase transition-all relative md:hidden",
-                activeTab === 'settings' ? "text-white" : "text-white/20 hover:text-white/40"
+              {profile?.role === 'admin' && onViewChange && (
+                <button 
+                  onClick={() => onViewChange('admin')}
+                  className="pb-4 text-[10px] md:text-sm font-medium tracking-widest uppercase transition-all relative whitespace-nowrap text-red-500/60 hover:text-red-500"
+                >
+                  <div className="flex items-center gap-1 md:gap-2">
+                    <Shield className="w-3 h-3 md:w-4 md:h-4" />
+                    Admin
+                  </div>
+                </button>
               )}
-            >
-              <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4" />
-                Settings
-              </div>
-              {activeTab === 'settings' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent" />}
-            </button>
+            </>
           )}
         </div>
 
@@ -529,7 +627,7 @@ export default function UserProfilePage({ username: targetUsername, onClose, onV
               ) : (
                 userConfessions.map(c => (
                   <div key={c.id} className="relative group">
-                    <ConfessionCard confession={c} />
+                    <ConfessionCard confession={c} currentUserProfile={currentUserProfile} />
                     {isOwnProfile && (
                       <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         {confirmDeleteId === c.id ? (
@@ -587,7 +685,7 @@ export default function UserProfilePage({ username: targetUsername, onClose, onV
                 </div>
               ) : (
                 savedConfessions.map(c => (
-                  <ConfessionCard key={c.id} confession={c} />
+                  <ConfessionCard key={c.id} confession={c} currentUserProfile={currentUserProfile} />
                 ))
               )}
             </motion.div>
@@ -601,6 +699,86 @@ export default function UserProfilePage({ username: targetUsername, onClose, onV
               exit={{ opacity: 0, y: -10 }}
               className="max-w-xl mx-auto space-y-6 md:space-y-8 glass p-4 md:p-8 rounded-3xl border border-white/5"
             >
+              <div className="flex flex-col items-center space-y-6 pb-6 border-b border-white/5">
+                <div className="relative group">
+                  <img 
+                    src={newAvatarUrl || profile.avatarUrl} 
+                    alt="Avatar Preview"
+                    className="w-24 h-24 md:w-32 md:h-32 rounded-3xl border-2 border-white/10 bg-black object-cover shadow-2xl"
+                  />
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl"
+                  >
+                    <Camera className="w-6 h-6" />
+                  </button>
+                </div>
+                
+                <div className="w-full space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] uppercase tracking-widest text-white/40 font-mono">Choose an Avatar</label>
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-[10px] font-medium text-accent hover:underline flex items-center gap-1"
+                    >
+                      <Camera className="w-3 h-3" />
+                      Upload Custom
+                    </button>
+                  </div>
+
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+                    {AVATAR_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setSelectedAvatarCategory(cat.id)}
+                        className={cn(
+                          "px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap border",
+                          selectedAvatarCategory === cat.id 
+                            ? "bg-white text-black border-white" 
+                            : "bg-white/5 text-white/40 border-white/10 hover:border-white/20"
+                        )}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-5 gap-2">
+                    {AVATAR_CATEGORIES.find(c => c.id === selectedAvatarCategory)?.seeds.map((seed) => {
+                      const url = `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`;
+                      return (
+                        <button
+                          key={seed}
+                          onClick={() => setNewAvatarUrl(url)}
+                          className={cn(
+                            "aspect-square rounded-xl border-2 transition-all overflow-hidden bg-black/40 hover:scale-105",
+                            (newAvatarUrl === url || (!newAvatarUrl && profile.avatarUrl === url))
+                              ? "border-accent" 
+                              : "border-transparent hover:border-white/20"
+                          )}
+                        >
+                          <img 
+                            src={url} 
+                            alt={seed} 
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <input 
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept="image/*"
+                  className="hidden"
+                />
+                <p className="text-[10px] text-white/20">Max upload size: 512KB</p>
+              </div>
+
               <div className="space-y-4">
                 <label className="text-[10px] uppercase tracking-widest text-white/40 font-mono">Username</label>
                 <div className="relative">
@@ -621,7 +799,7 @@ export default function UserProfilePage({ username: targetUsername, onClose, onV
                   </div>
                 </div>
                 {usernameStatus === 'taken' && <p className="text-xs text-red-500">Username is already taken</p>}
-                {usernameStatus === 'invalid' && <p className="text-xs text-red-500">3-20 characters, lowercase, numbers, underscores only</p>}
+                {usernameStatus === 'invalid' && <p className="text-xs text-red-500">3-50 characters, lowercase, numbers, underscores only</p>}
               </div>
 
               <div className="space-y-4">
@@ -629,11 +807,11 @@ export default function UserProfilePage({ username: targetUsername, onClose, onV
                 <textarea 
                   value={editBio}
                   onChange={(e) => setEditBio(e.target.value)}
-                  maxLength={160}
+                  maxLength={500}
                   className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 md:py-3 focus:outline-none focus:border-accent transition-colors h-32 md:h-24 resize-none text-sm md:text-base"
                   placeholder="Tell us about yourself..."
                 />
-                <p className="text-right text-[10px] text-white/20">{editBio.length}/160</p>
+                <p className="text-right text-[10px] text-white/20">{editBio.length}/500</p>
               </div>
 
               <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
@@ -655,12 +833,46 @@ export default function UserProfilePage({ username: targetUsername, onClose, onV
                 </button>
               </div>
 
+              {profile?.role === 'admin' && onViewChange && (
+                <div className="p-4 bg-red-500/5 rounded-2xl border border-red-500/10 space-y-3">
+                  <div className="flex items-center gap-2 text-red-500">
+                    <Shield className="w-4 h-4" />
+                    <span className="text-sm font-medium">Administrative Access</span>
+                  </div>
+                  <p className="text-[10px] md:text-xs text-white/40">You have administrator privileges. Access the dashboard to manage content and users.</p>
+                  <button
+                    onClick={() => onViewChange('admin')}
+                    className="w-full py-2 bg-red-500 text-white rounded-xl text-xs font-bold hover:bg-red-600 transition-all"
+                  >
+                    Open Admin Dashboard
+                  </button>
+                </div>
+              )}
+
+              {error && (
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 text-xs text-center animate-pulse">
+                  {error}
+                </div>
+              )}
+
               <button 
                 onClick={handleSaveSettings}
-                disabled={saving || (editUsername !== profile.username && usernameStatus !== 'available') || usernameStatus === 'invalid'}
-                className="w-full bg-white text-black py-4 rounded-2xl font-bold hover:bg-white/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm md:text-base"
+                disabled={saving || saveSuccess || (editUsername !== profile.username && usernameStatus !== 'available') || usernameStatus === 'invalid'}
+                className={cn(
+                  "w-full py-4 rounded-2xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm md:text-base",
+                  saveSuccess ? "bg-green-500 text-white" : "bg-white text-black hover:bg-white/90"
+                )}
               >
-                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : "Save Changes"}
+                {saving ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : saveSuccess ? (
+                  <>
+                    <Check className="w-5 h-5" />
+                    Changes Saved!
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
               </button>
             </motion.div>
           )}

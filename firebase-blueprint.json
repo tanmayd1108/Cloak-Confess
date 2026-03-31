@@ -34,6 +34,7 @@
       "properties": {
         "uid": { "type": "string" },
         "username": { "type": "string" },
+        "username_lower": { "type": "string" },
         "avatarUrl": { "type": "string" },
         "bio": { "type": "string" },
         "isPublic": { "type": "boolean" },
@@ -41,7 +42,7 @@
         "streakCount": { "type": "integer" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "username", "avatarUrl", "isPublic", "role", "streakCount", "createdAt"]
+      "required": ["uid", "username", "username_lower", "avatarUrl", "isPublic", "role", "streakCount", "createdAt"]
     },
     "Username": {
       "title": "Username",
@@ -62,6 +63,56 @@
         "savedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["confessionId", "uid", "savedAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A comment on a confession.",
+      "type": "object",
+      "properties": {
+        "confessionId": { "type": "string" },
+        "parentCommentId": { "type": "string" },
+        "content": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "anonymousId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["confessionId", "content", "authorUid", "anonymousId", "createdAt"]
+    },
+    "Reaction": {
+      "title": "Reaction",
+      "description": "A user's reaction to a confession.",
+      "type": "object",
+      "properties": {
+        "confessionId": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["confessionId", "userId", "type", "createdAt"]
+    },
+    "DailyPrompt": {
+      "title": "DailyPrompt",
+      "description": "A daily prompt for confessions.",
+      "type": "object",
+      "properties": {
+        "question": { "type": "string" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["question", "category", "createdAt"]
+    },
+    "PrivateMessage": {
+      "title": "PrivateMessage",
+      "description": "A private message in anonymous chat.",
+      "type": "object",
+      "properties": {
+        "chatId": { "type": "string" },
+        "senderUid": { "type": "string" },
+        "receiverUid": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["chatId", "senderUid", "receiverUid", "content", "createdAt"]
     }
   },
   "firestore": {
@@ -84,6 +135,22 @@
     "/saved_confessions/{savedId}": {
       "schema": "SavedConfession",
       "description": "Collection of bookmarked confessions."
+    },
+    "/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Collection of comments on confessions."
+    },
+    "/confession_reactions/{reactionId}": {
+      "schema": "Reaction",
+      "description": "Collection of user reactions."
+    },
+    "/daily_prompts/{promptId}": {
+      "schema": "DailyPrompt",
+      "description": "Collection of daily prompts."
+    },
+    "/private_messages/{messageId}": {
+      "schema": "PrivateMessage",
+      "description": "Collection of private messages."
     }
   }
 }

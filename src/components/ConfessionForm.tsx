@@ -315,259 +315,317 @@ export default function ConfessionForm({ onComplete, initialCategory }: { onComp
 
   return (
     <div className="w-full max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl md:text-2xl font-serif italic text-accent">Share your secret...</h2>
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-8">
+        <div className="space-y-2">
+          <h2 className="text-4xl md:text-5xl font-serif italic leading-tight text-white">
+            Share your <br /> <span className="text-white">secret...</span>
+          </h2>
+          <p className="text-white/40 text-sm md:text-base font-light max-w-[200px] md:max-w-xs">
+            Your words are safe in the shadows of Cloak.
+          </p>
+        </div>
         {userProfile && userProfile.streakCount > 0 && (
-          <div className="flex items-center gap-2 bg-accent/10 px-3 py-1 rounded-full border border-accent/20">
-            <Target className="w-4 h-4 text-accent" />
-            <span className="text-[10px] md:text-xs font-medium text-accent">
-              {userProfile.streakCount} day streak 👀
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="inline-flex items-center gap-2 border border-white/20 px-4 py-3 rounded-2xl"
+          >
+            <Sparkles className="w-4 h-4 text-white/60" />
+            <span className="text-[10px] font-bold text-white uppercase tracking-[0.2em]">
+              {userProfile.streakCount} Day Streak
             </span>
-          </div>
+          </motion.div>
         )}
       </div>
       
-      <form onSubmit={handleSubmit} className="space-y-6 pb-20 md:pb-0">
-        <div>
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="What's on your mind?"
-            className="w-full h-40 bg-black/30 border border-white/10 rounded-xl p-4 focus:outline-none focus:border-accent/50 transition-colors resize-none"
-            maxLength={2000}
-            required
-          />
-          <div className="text-right text-xs text-white/40 mt-1">
-            {content.length}/2000
-          </div>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Main Input Card */}
+        <div className="bg-zinc-900/50 border border-white/5 rounded-[2.5rem] p-1 overflow-hidden">
+          <section className="p-6 pb-2">
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="What's weighing on your soul? Write it here, anonymously..."
+              className="w-full h-32 md:h-40 bg-transparent text-white/80 text-lg md:text-xl font-serif leading-relaxed focus:outline-none transition-all resize-none placeholder:text-white/20"
+              maxLength={2000}
+              required
+            />
+          </section>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <label className="text-xs text-white/40 font-mono uppercase tracking-wider">Mood</label>
-            <div className="flex flex-wrap gap-2">
-              {MOODS.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setMood(m.id)}
-                  className={cn(
-                    "px-4 py-1.5 rounded-full text-sm transition-all border flex items-center gap-2",
-                    mood === m.id 
-                      ? "bg-accent text-white border-accent" 
-                      : "bg-white/5 text-white/60 border-white/10 hover:border-white/30"
-                  )}
-                >
-                  <span>{m.emoji}</span>
-                  <span>{m.label}</span>
-                </button>
-              ))}
+        {/* Mood Section */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-white" />
             </div>
+            <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/40">The Mood</label>
           </div>
-
-          <div className="space-y-2">
-            <label className="text-xs text-white/40 font-mono uppercase tracking-wider">Category</label>
-            <div className="flex flex-wrap gap-2">
-              {CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setCategory(cat)}
-                  className={cn(
-                    "px-4 py-1.5 rounded-full text-sm transition-all border",
-                    category === cat 
-                      ? "bg-accent text-white border-accent" 
-                      : "bg-white/5 text-white/60 border-white/10 hover:border-white/30"
-                  )}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {MOODS.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setMood(m.id)}
+                className={cn(
+                  "px-4 py-4 rounded-2xl text-xs transition-all border flex items-center justify-center gap-3 group",
+                  mood === m.id 
+                    ? "bg-white text-black border-white" 
+                    : "bg-white/5 text-white/40 border-white/10 hover:border-white/30"
+                )}
+              >
+                <span className="text-xl group-hover:scale-110 transition-transform">{m.emoji}</span>
+                <span className="font-medium">{m.label}</span>
+              </button>
+            ))}
           </div>
+        </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="text-xs text-white/40 font-mono uppercase tracking-wider">Persona</label>
-              <User className="w-4 h-4 text-white/20" />
+        {/* Category Section */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center">
+              <Target className="w-4 h-4 text-white" />
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/40">The Category</label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setCategory(cat)}
+                className={cn(
+                  "px-5 py-2.5 rounded-xl text-[10px] font-medium transition-all border",
+                  category === cat 
+                    ? "bg-white text-black border-white" 
+                    : "bg-white/5 text-white/40 border-white/10 hover:border-white/30"
+                )}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Persona & Community Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <section className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center">
+                <User className="w-4 h-4 text-white" />
+              </div>
+              <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/40">Your Persona</label>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
               {PERSONAS.map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setPersona(p)}
                   className={cn(
-                    "px-3 py-2 rounded-xl border text-[10px] font-medium transition-all text-center",
+                    "px-3 py-3 rounded-xl border text-[9px] font-mono uppercase tracking-widest transition-all text-center",
                     persona === p 
                       ? "bg-white text-black border-white" 
-                      : "bg-white/5 border-white/10 text-white/40 hover:border-white/30"
+                      : "bg-white/5 border-white/10 text-white/30 hover:border-white/30"
                   )}
                 >
                   {p}
                 </button>
               ))}
             </div>
-          </div>
+          </section>
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="text-xs text-white/40 font-mono uppercase tracking-wider">Community</label>
-              <Users className="w-4 h-4 text-white/20" />
+          <section className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center">
+                <Users className="w-4 h-4 text-white" />
+              </div>
+              <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/40">The Community</label>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {COMMUNITY_TYPES.map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setCommunityType(type)}
-                  className={cn(
-                    "px-3 py-2 rounded-xl border text-[10px] font-medium transition-all text-center",
-                    communityType === type 
-                      ? "bg-white text-black border-white" 
-                      : "bg-white/5 text-white/60 border-white/10 hover:border-white/30"
-                  )}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-          {communityType !== 'General' && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <input
-                type="text"
-                value={communityName}
-                onChange={(e) => setCommunityName(e.target.value)}
-                placeholder={`Enter ${communityType} name...`}
-                className="w-full bg-black/30 border border-white/10 rounded-xl p-3 focus:outline-none focus:border-accent/50 transition-colors"
-                required
-              />
-            </motion.div>
-          )}
-        </div>
-
-        <div className="space-y-4 pt-4 border-t border-white/5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-accent" />
-              <span className="text-sm font-medium">Add a Poll</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setHasPoll(!hasPoll)}
-              className={cn(
-                "w-12 h-6 rounded-full transition-all relative",
-                hasPoll ? "bg-accent" : "bg-white/10"
-              )}
-            >
-              <div className={cn(
-                "absolute top-1 w-4 h-4 rounded-full bg-white transition-all",
-                hasPoll ? "left-7" : "left-1"
-              )} />
-            </button>
-          </div>
-
-          {hasPoll && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="space-y-3"
-            >
-              <input
-                type="text"
-                value={pollQuestion}
-                onChange={(e) => setPollQuestion(e.target.value)}
-                placeholder="Poll Question (e.g., Should I confess?)"
-                className="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-accent/50"
-              />
+            <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
-                {pollOptions.map((opt, idx) => (
-                  <input
-                    key={idx}
-                    type="text"
-                    value={opt}
-                    onChange={(e) => {
-                      const newOpts = [...pollOptions];
-                      newOpts[idx] = e.target.value;
-                      setPollOptions(newOpts);
-                    }}
-                    placeholder={`Option ${idx + 1}`}
-                    className="bg-black/30 border border-white/10 rounded-xl p-2 text-xs focus:outline-none focus:border-accent/50"
-                  />
+                {COMMUNITY_TYPES.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setCommunityType(type)}
+                    className={cn(
+                      "px-3 py-3 rounded-xl border text-[9px] font-mono uppercase tracking-widest transition-all text-center",
+                      communityType === type 
+                        ? "bg-white text-black border-white" 
+                        : "bg-white/5 border-white/10 text-white/30 hover:border-white/30"
+                    )}
+                  >
+                    {type}
+                  </button>
                 ))}
               </div>
-            </motion.div>
-          )}
-        </div>
-
-        <div className="space-y-4 pt-4 border-t border-white/5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-accent" />
-              <span className="text-sm font-medium">Trusted Circle</span>
+              {communityType !== 'General' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <input
+                    type="text"
+                    value={communityName}
+                    onChange={(e) => setCommunityName(e.target.value)}
+                    placeholder={`Enter ${communityType} name...`}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs focus:outline-none focus:border-white/40 transition-all placeholder:text-white/20"
+                    required
+                  />
+                </motion.div>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={() => setIsPrivate(!isPrivate)}
-              className={cn(
-                "w-12 h-6 rounded-full transition-all relative",
-                isPrivate ? "bg-accent" : "bg-white/10"
-              )}
-            >
-              <div className={cn(
-                "absolute top-1 w-4 h-4 rounded-full bg-white transition-all",
-                isPrivate ? "left-7" : "left-1"
-              )} />
-            </button>
-          </div>
-
-          {isPrivate && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="space-y-4"
-            >
-              <div className="space-y-2">
-                <p className="text-xs text-white/40">Enter emails (comma separated)</p>
-                <input
-                  type="text"
-                  value={invitedEmails}
-                  onChange={(e) => setInvitedEmails(e.target.value)}
-                  placeholder="friend@example.com, colleague@example.com"
-                  className="w-full bg-black/30 border border-white/10 rounded-xl p-3 focus:outline-none focus:border-accent/50 transition-colors"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-xs text-white/40">Enter usernames (comma separated)</p>
-                <input
-                  type="text"
-                  value={invitedUsernames}
-                  onChange={(e) => setInvitedUsernames(e.target.value)}
-                  placeholder="cool_user123, anonymous_whisperer"
-                  className="w-full bg-black/30 border border-white/10 rounded-xl p-3 focus:outline-none focus:border-accent/50 transition-colors"
-                />
-              </div>
-
-              {!auth.currentUser?.email && (
-                <p className="text-[10px] text-yellow-500/60 italic">
-                  Note: Users must be logged in with their email to view private confessions.
-                </p>
-              )}
-            </motion.div>
-          )}
+          </section>
         </div>
 
-        <div className="space-y-4 pt-4 border-t border-white/5">
+        {/* Interactive Modules */}
+        <div className="grid grid-cols-1 gap-4">
+          {/* Poll Module */}
+          <section className={cn(
+            "p-5 rounded-[2rem] border transition-all duration-500",
+            hasPoll ? "bg-accent/5 border-accent/30" : "bg-white/[0.02] border-white/5"
+          )}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "w-8 h-8 rounded-xl flex items-center justify-center border transition-all",
+                  hasPoll ? "bg-accent text-white border-accent" : "bg-white/5 text-white/40 border-white/10"
+                )}>
+                  <BarChart3 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-serif italic text-lg">Add a Poll</h4>
+                  <p className="text-[9px] text-white/30 uppercase tracking-widest">Get feedback</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHasPoll(!hasPoll)}
+                className={cn(
+                  "w-9 h-5 rounded-full transition-all relative shrink-0 border border-white/10",
+                  hasPoll ? "bg-accent" : "bg-white/5"
+                )}
+              >
+                <div className={cn(
+                  "absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-all shadow-sm",
+                  hasPoll ? "left-[1.25rem]" : "left-0.5"
+                )} />
+              </button>
+            </div>
+
+            <AnimatePresence>
+              {hasPoll && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-4 overflow-hidden"
+                >
+                  <input
+                    type="text"
+                    value={pollQuestion}
+                    onChange={(e) => setPollQuestion(e.target.value)}
+                    placeholder="What should the world decide?"
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-sm focus:outline-none focus:border-accent/50 transition-all"
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    {pollOptions.map((opt, idx) => (
+                      <input
+                        key={idx}
+                        type="text"
+                        value={opt}
+                        onChange={(e) => {
+                          const newOpts = [...pollOptions];
+                          newOpts[idx] = e.target.value;
+                          setPollOptions(newOpts);
+                        }}
+                        placeholder={`Option ${idx + 1}`}
+                        className="bg-black/40 border border-white/10 rounded-xl p-3 text-xs focus:outline-none focus:border-accent/50"
+                      />
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </section>
+
+          {/* Trusted Circle Module */}
+          <section className={cn(
+            "p-5 rounded-[2rem] border transition-all duration-500",
+            isPrivate ? "bg-accent/5 border-accent/30" : "bg-white/[0.02] border-white/5"
+          )}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "w-8 h-8 rounded-xl flex items-center justify-center border transition-all",
+                  isPrivate ? "bg-accent text-white border-accent" : "bg-white/5 text-white/40 border-white/10"
+                )}>
+                  <ShieldAlert className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-serif italic text-lg">Trusted Circle</h4>
+                  <p className="text-[9px] text-white/30 uppercase tracking-widest">Share with specific</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPrivate(!isPrivate)}
+                className={cn(
+                  "w-9 h-5 rounded-full transition-all relative shrink-0 border border-white/10",
+                  isPrivate ? "bg-accent" : "bg-white/5"
+                )}
+              >
+                <div className={cn(
+                  "absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-all shadow-sm",
+                  isPrivate ? "left-[1.25rem]" : "left-0.5"
+                )} />
+              </button>
+            </div>
+
+            <AnimatePresence>
+              {isPrivate && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-4 overflow-hidden"
+                >
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono uppercase tracking-widest text-white/30">Emails</label>
+                    <input
+                      type="text"
+                      value={invitedEmails}
+                      onChange={(e) => setInvitedEmails(e.target.value)}
+                      placeholder="soul1@cloak.com, soul2@cloak.com"
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-xs focus:outline-none focus:border-accent/50 transition-all"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono uppercase tracking-widest text-white/30">Usernames</label>
+                    <input
+                      type="text"
+                      value={invitedUsernames}
+                      onChange={(e) => setInvitedUsernames(e.target.value)}
+                      placeholder="whisperer_01, shadow_walker"
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-xs focus:outline-none focus:border-accent/50 transition-all"
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </section>
+        </div>
+
+        {/* Aesthetic Theme Section */}
+        <section className="space-y-4 p-6 rounded-[2rem] bg-zinc-900/50 border border-white/5">
           <div className="flex items-center justify-between">
-            <label className="text-xs text-white/40 font-mono uppercase tracking-wider">Aesthetic Theme</label>
-            <Palette className="w-4 h-4 text-white/20" />
+            <div className="space-y-1">
+              <h4 className="text-xl font-serif italic">Aesthetic Theme</h4>
+              <p className="text-[9px] text-white/30 uppercase tracking-[0.2em]">Dress your secret in color</p>
+            </div>
+            <Palette className="w-5 h-5 text-white/20" />
           </div>
           <div className="flex flex-wrap gap-3">
             {THEMES.map((t) => (
@@ -576,35 +634,44 @@ export default function ConfessionForm({ onComplete, initialCategory }: { onComp
                 type="button"
                 onClick={() => setTheme(t.id)}
                 className={cn(
-                  "group relative w-12 h-12 rounded-xl border-2 transition-all overflow-hidden",
-                  theme === t.id ? "border-accent scale-110" : "border-white/10 hover:border-white/30",
+                  "group relative w-12 h-12 rounded-2xl border-2 transition-all overflow-hidden flex items-center justify-center",
+                  theme === t.id ? "border-white scale-110" : "border-white/10 hover:border-white/30",
                   t.bg
                 )}
-                title={t.label}
               >
+                <span className={cn("text-[8px] font-mono uppercase tracking-widest transition-all", theme === t.id ? "opacity-100" : "opacity-0 group-hover:opacity-40")}>
+                  {t.label}
+                </span>
                 {theme === t.id && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-accent/20">
-                    <Sparkles className="w-4 h-4 text-white" />
-                  </div>
+                  <motion.div 
+                    layoutId="theme-active"
+                    className="absolute inset-0 border-2 border-white rounded-2xl pointer-events-none"
+                  />
                 )}
               </button>
             ))}
           </div>
-        </div>
+        </section>
 
-        <div className="space-y-4 pt-4 border-t border-white/5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Music className="w-4 h-4 text-accent" />
-              <span className="text-sm font-medium">Audio Confession</span>
+        {/* Audio Section */}
+        <section className="p-6 rounded-[2rem] bg-zinc-900/50 border border-white/5">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10">
+                <Music className="w-5 h-5 text-white/60" />
+              </div>
+              <div>
+                <h4 className="font-serif italic text-lg">Voice Whisper</h4>
+                <p className="text-[9px] text-white/30 uppercase tracking-widest">Record your real voice, anonymously</p>
+              </div>
             </div>
             {audioBlob && (
               <button 
                 type="button" 
                 onClick={() => setAudioBlob(null)}
-                className="text-[10px] text-red-400 hover:underline"
+                className="text-[9px] text-white/60 hover:text-white font-mono uppercase tracking-widest"
               >
-                Remove Recording
+                Discard
               </button>
             )}
           </div>
@@ -614,81 +681,91 @@ export default function ConfessionForm({ onComplete, initialCategory }: { onComp
               <button
                 type="button"
                 onClick={startRecording}
-                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white/80 px-4 py-2 rounded-xl border border-white/10 transition-all"
+                className="group flex items-center gap-3 bg-white/5 hover:bg-white/10 text-white px-6 py-3 rounded-2xl border border-white/10 transition-all"
               >
-                <Mic className="w-4 h-4 text-red-500" />
-                <span className="text-xs">Record Voice</span>
+                <div className="w-3 h-3 rounded-full bg-red-500 group-hover:scale-125 transition-transform" />
+                <span className="text-sm font-medium">Record Voice</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={stopRecording}
-                className="flex items-center gap-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 px-4 py-2 rounded-xl border border-red-500/30 animate-pulse transition-all"
+                className="flex items-center gap-3 bg-red-500 text-white px-6 py-3 rounded-2xl border border-red-500/30 animate-pulse transition-all"
               >
                 <Square className="w-4 h-4 fill-current" />
-                <span className="text-xs">Stop Recording</span>
+                <span className="text-sm font-medium">Stop Recording</span>
               </button>
             )}
             
             {audioBlob && !isRecording && (
-              <div className="flex-1 h-10 bg-white/5 rounded-xl border border-white/10 flex items-center px-4 gap-3">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[10px] text-white/40 truncate">Voice message recorded successfully</span>
-              </div>
+              <motion.div 
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="flex-1 h-14 bg-white/5 rounded-2xl border border-white/10 flex items-center px-6 gap-4"
+              >
+                <div className="w-2 h-2 rounded-full bg-white/60 animate-pulse" />
+                <span className="text-xs text-white/60 font-medium">Voice captured.</span>
+              </motion.div>
             )}
           </div>
-          <p className="text-[10px] text-white/30 italic">Voice is recorded anonymously. No metadata is stored.</p>
-        </div>
+        </section>
 
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
-          <div className="flex-1 flex items-center gap-2 bg-white/5 px-4 py-3 md:py-2 rounded-xl border border-white/10">
-            <span className="text-sm text-white/60">Solve: {captcha.num1} + {captcha.num2} =</span>
+        {/* Submit Section */}
+        <div className="space-y-3">
+          <div className="bg-zinc-900/50 border border-white/5 rounded-2xl px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-white/30">Proof of Soul:</span>
+              <span className="text-lg font-serif italic text-white/80">{captcha.num1} + {captcha.num2} =</span>
+            </div>
             <input
               type="number"
               value={captchaInput}
               onChange={(e) => setCaptchaInput(e.target.value)}
-              className="w-16 bg-transparent border-b border-white/20 focus:outline-none focus:border-accent text-center"
+              className="w-20 bg-transparent border-b border-white/20 focus:outline-none focus:border-white/40 text-center text-lg font-serif text-white"
               required
             />
           </div>
 
           <button
             type="submit"
-            disabled={isSubmitting || !content.trim()}
-            className="flex-1 bg-accent hover:bg-accent/80 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-4 md:py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+            disabled={isSubmitting || (!content.trim() && !audioBlob)}
+            className="w-full bg-black hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-base py-5 rounded-2xl transition-all flex items-center justify-center gap-3 group border border-white/5"
           >
-            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-            {isSubmitting ? 'Posting...' : 'Post Anonymously'}
+            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 text-white/60 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />}
+            <span>{isSubmitting ? 'Whispering...' : 'Post Anonymously'}</span>
           </button>
         </div>
 
+        {/* Status Messages */}
         <AnimatePresence>
           {status !== 'idle' && (
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
+              exit={{ opacity: 0, y: 20 }}
               className={cn(
-                "p-4 rounded-xl flex items-center gap-3 text-sm",
-                status === 'checking' && "bg-blue-500/10 text-blue-400 border border-blue-500/20",
-                status === 'allowed' && "bg-green-500/10 text-green-400 border border-green-500/20",
-                status === 'blocked' && "bg-red-500/10 text-red-400 border border-red-500/20",
-                status === 'error' && "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
+                "fixed bottom-24 md:bottom-32 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] md:w-full max-w-lg p-4 md:p-6 rounded-2xl md:rounded-3xl flex items-center gap-3 md:gap-4 text-sm z-50 shadow-2xl backdrop-blur-xl",
+                status === 'checking' && "bg-blue-500/20 text-blue-200 border border-blue-500/30",
+                status === 'allowed' && "bg-green-500/20 text-green-200 border border-green-500/30",
+                status === 'blocked' && "bg-red-500/20 text-red-200 border border-red-500/30",
+                status === 'error' && "bg-yellow-500/20 text-yellow-200 border border-yellow-500/30"
               )}
             >
-              {status === 'checking' && <Loader2 className="w-5 h-5 animate-spin" />}
-              {status === 'allowed' && <CheckCircle2 className="w-5 h-5" />}
-              {status === 'blocked' && <ShieldAlert className="w-5 h-5" />}
-              {status === 'error' && <AlertCircle className="w-5 h-5" />}
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl flex items-center justify-center bg-white/10 shrink-0">
+                {status === 'checking' && <Loader2 className="w-5 h-5 md:w-6 md:h-6 animate-spin" />}
+                {status === 'allowed' && <CheckCircle2 className="w-5 h-5 md:w-6 md:h-6" />}
+                {status === 'blocked' && <ShieldAlert className="w-5 h-5 md:w-6 md:h-6" />}
+                {status === 'error' && <AlertCircle className="w-5 h-5 md:w-6 md:h-6" />}
+              </div>
               
-              <div>
-                <p className="font-medium">
-                  {status === 'checking' && 'AI is checking your content...'}
-                  {status === 'allowed' && 'Allowed! Your confession is live.'}
-                  {status === 'blocked' && 'Blocked'}
-                  {status === 'error' && 'Error'}
+              <div className="flex-1 min-w-0">
+                <p className="font-serif italic text-lg md:text-xl truncate">
+                  {status === 'checking' && 'Whispering...'}
+                  {status === 'allowed' && 'Whisper accepted.'}
+                  {status === 'blocked' && 'Whisper rejected.'}
+                  {status === 'error' && 'The shadows are silent.'}
                 </p>
-                {errorMsg && <p className="opacity-80 text-xs mt-0.5">{errorMsg}</p>}
+                {errorMsg && <p className="opacity-60 text-[10px] md:text-xs mt-0.5 md:mt-1 font-mono uppercase tracking-widest truncate">{errorMsg}</p>}
               </div>
             </motion.div>
           )}
